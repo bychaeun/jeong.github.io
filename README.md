@@ -1,2 +1,2 @@
-# jeong.github.io
+# bychaeun.github.io/jeong.github.io
 chaeeun
