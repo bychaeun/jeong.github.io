@@ -6,32 +6,21 @@
 <title>ROOM:EYE</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{
-  background:#000;
-  display:flex;justify-content:center;align-items:center;
-  position:fixed;top:0;left:0;
-  width:100%;height:100%;
-  overflow:hidden;
-  touch-action:none;
-  -webkit-tap-highlight-color:transparent;
-  user-select:none;-webkit-user-select:none;
-}
+body{background:#000;display:flex;justify-content:center;align-items:center;
+  position:fixed;top:0;left:0;width:100%;height:100%;overflow:hidden;
+  touch-action:none;-webkit-tap-highlight-color:transparent;
+  user-select:none;-webkit-user-select:none;}
 #wrap{position:relative;}
 canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;}
-#crt{
-  position:absolute;top:0;left:0;right:0;bottom:0;
-  pointer-events:none;z-index:10;
-  background:repeating-linear-gradient(to bottom,transparent 0px,transparent 2px,rgba(0,0,0,0.1) 2px,rgba(0,0,0,0.1) 4px);
-}
-#dlg{
-  display:none;position:absolute;bottom:0;left:0;right:0;z-index:20;
+#crt{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10;
+  background:repeating-linear-gradient(to bottom,transparent 0px,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);}
+#dlg{display:none;position:absolute;bottom:36px;left:0;right:0;z-index:20;
   background:rgba(4,1,1,0.97);border-top:1.5px solid #5c1515;
-  padding:16px 18px 12px;min-height:130px;
-  font-family:'Courier New',Courier,monospace;font-size:15px;color:#ccc;line-height:1.85;
-  touch-action:none;
-}
-#dlg-text{min-height:70px;white-space:pre-wrap;}
-#dlg-hint{text-align:right;font-size:11px;color:#7a2020;margin-top:6px;animation:bk 1.2s step-end infinite;}
+  padding:14px 18px 12px;min-height:120px;
+  font-family:'Courier New',Courier,monospace;font-size:14px;color:#ccc;line-height:1.8;
+  touch-action:none;}
+#dlg-text{min-height:60px;white-space:pre-wrap;}
+#dlg-hint{text-align:right;font-size:10px;color:#7a2020;margin-top:4px;animation:bk 1.2s step-end infinite;}
 @keyframes bk{0%,100%{opacity:1}50%{opacity:0}}
 #fade{position:absolute;top:0;left:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity 0.75s;}
 </style>
@@ -40,22 +29,19 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;touch
 <div id="wrap">
   <canvas id="c"></canvas>
   <div id="crt"></div>
-  <div id="dlg">
-    <div id="dlg-text"></div>
-    <div id="dlg-hint">▼ 탭하여 계속</div>
-  </div>
+  <div id="dlg"><div id="dlg-text"></div><div id="dlg-hint">▼ 탭하여 계속</div></div>
   <div id="fade"></div>
 </div>
 <script>
 'use strict';
-const GW=360,GH=640;
-const cv=document.getElementById('c');
-const g=cv.getContext('2d');
-const wrap=document.getElementById('wrap');
-const dlgEl=document.getElementById('dlg');
-const dlgTextEl=document.getElementById('dlg-text');
-const dlgHintEl=document.getElementById('dlg-hint');
-const fadeEl=document.getElementById('fade');
+var GW=360,GH=640,HH=44,PBH=36;
+var cv=document.getElementById('c');
+var g=cv.getContext('2d');
+var wrap=document.getElementById('wrap');
+var dlgEl=document.getElementById('dlg');
+var dlgTextEl=document.getElementById('dlg-text');
+var dlgHintEl=document.getElementById('dlg-hint');
+var fadeEl=document.getElementById('fade');
 
 function resize(){
   var s=Math.min(window.innerWidth/GW,window.innerHeight/GH);
@@ -68,13 +54,27 @@ resize();
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,200);});
 
-// ─── State ───────────────────────────────────────────────────
+// ─── State ────────────────────────────────────────────────────
 var scene='title',phase=0,invCount=0,dlgActive=false,frozen=false;
+var paused=false,showSettings=false;
+var bgmVol=0.7,sfxVol=0.8,dragging=null;
+var phaseNotif=null;
 var P={x:180,y:490,tx:180,ty:490,moving:false,flip:false,wf:0,wt:0};
 var PSPD=95,PREACH=62;
 var SH={x:-300,y:450,active:false,spd:60};
 
-// ─── Dialogue ────────────────────────────────────────────────
+// UI zones
+var PBTN={x:GW-42,y:6,w:36,h:32};
+var RBTN={x:GW/2-80,y:222,w:160,h:42};
+var STBTN={x:GW/2-80,y:275,w:160,h:42};
+var TTBTN={x:GW/2-80,y:328,w:160,h:42};
+var BGMT={x:70,y:408,w:GW-140,h:6};
+var SFXT={x:70,y:448,w:GW-140,h:6};
+var SICON={x:GW-42,y:10,w:30,h:28};
+var TBGMT={x:70,y:172,w:GW-140,h:6};
+var TSFXT={x:70,y:212,w:GW-140,h:6};
+
+// ─── Dialogue ─────────────────────────────────────────────────
 var DQ={lines:[],i:0,n:0,done:false,tim:null,cb:null};
 function showDlg(lines,cb){
   if(!lines||!lines.length){if(cb)cb();return;}
@@ -109,98 +109,62 @@ function advanceDlg(){
 }
 
 // ─── Fade ─────────────────────────────────────────────────────
-function fadeIn(cb){
-  fadeEl.style.transition='opacity 0.75s';
-  fadeEl.style.opacity='1';
-  setTimeout(function(){if(cb)cb();},750);
-}
-function fadeOut(){
-  fadeEl.style.transition='opacity 0.75s';
-  fadeEl.style.opacity='0';
-}
+function fadeIn(cb){fadeEl.style.transition='opacity 0.75s';fadeEl.style.opacity='1';setTimeout(function(){if(cb)cb();},750);}
+function fadeOut(){fadeEl.style.transition='opacity 0.75s';fadeEl.style.opacity='0';}
+
+// ─── Notification ─────────────────────────────────────────────
+var NOTIF_MSGS=['무언가... 보고 있다','방이 흔들린다','뒤에서 발소리가 들린다'];
+function showNotif(msg){phaseNotif={msg:msg,t:0,max:2.8};}
 
 // ─── Room data ────────────────────────────────────────────────
 var ROOMS=[
   {bg:'#100706',fl:'#140907',wl:'#0C0504',req:3,
    extra:[{x:118,y:162,w:44,h:44,vis:false},{x:244,y:175,w:44,h:44,vis:false}],
    objects:[
-    {id:'eye1',x:50,y:185,w:54,h:54,type:'eye',used:false,
-     lines:['누군가 보고 있다.','눈이 움직인 것 같다.']},
-    {id:'carpet',x:130,y:415,w:100,h:44,type:'carpet',used:false,
-     lines:['카펫에도 눈이 있다.','발 아래에서도 감시당하고 있다.']},
-    {id:'window',x:260,y:200,w:52,h:65,type:'window',used:false,
-     lines:['창문이 없는데 시선이 느껴진다.','어디선가 계속 보고 있다.']},
-    {id:'tv1',x:158,y:268,w:58,h:42,type:'tv',used:false,
-     lines:['꺼진 화면에 내가 비친다.','전원을 켤 수가 없다.']},
-    {id:'door1',x:154,y:86,w:52,h:74,type:'door',used:false,isExit:true,reqC:3,
-     lines:['문은 열리지 않는다.','아직 이 방을 다 보지 못했다.'],
-     openLines:['문이 열린다.','. . .']}
+    {id:'eye1',x:50,y:185,w:54,h:54,type:'eye',used:false,lines:['누군가 보고 있다.','눈이 움직인 것 같다.']},
+    {id:'carpet',x:130,y:420,w:100,h:44,type:'carpet',used:false,lines:['카펫에도 눈이 있다.','발 아래에서도 감시당하고 있다.']},
+    {id:'window',x:260,y:200,w:52,h:65,type:'window',used:false,lines:['창문이 없는데 시선이 느껴진다.','어디선가 계속 보고 있다.']},
+    {id:'tv1',x:158,y:272,w:58,h:42,type:'tv',used:false,lines:['꺼진 화면에 내가 비친다.','전원을 켤 수가 없다.']},
+    {id:'door1',x:154,y:92,w:52,h:72,type:'door',used:false,isExit:true,reqC:3,
+     lines:['문은 열리지 않는다.','아직 이 방을 다 보지 못했다.'],openLines:['문이 열린다.','. . .']}
   ]},
   {bg:'#0D0505',fl:'#110707',wl:'#090404',req:3,extra:[],
    objects:[
-    {id:'eye2a',x:40,y:175,w:54,h:54,type:'eye',used:false,
-     lines:['눈이 늘어난 것 같다.','익숙했던 것들이 낯설게 변한다.']},
-    {id:'eye2b',x:270,y:185,w:54,h:54,type:'eye',used:false,
-     lines:['그림 속 눈이 나를 따라본다.','착각일까.']},
-    {id:'mirror',x:153,y:210,w:54,h:68,type:'mirror',used:false,
-     lines:['거울에 내가 보인다.','그런데... 저게 정말 나인가.','조금 다른 것 같다.']},
-    {id:'tv2',x:82,y:325,w:58,h:42,type:'tv',used:false,
-     lines:['TV에서 잡음이 들린다.','채널을 바꿀 수 없다.']},
-    {id:'door2',x:154,y:86,w:52,h:74,type:'door',used:false,isExit:true,reqC:3,
-     lines:['아직 이 방을 다 조사하지 못했다.','무언가 더 살펴봐야 한다.'],
-     openLines:['다음 방으로 넘어간다.','. . .']}
+    {id:'eye2a',x:40,y:175,w:54,h:54,type:'eye',used:false,lines:['눈이 늘어난 것 같다.','익숙했던 것들이 낯설게 변한다.']},
+    {id:'eye2b',x:270,y:185,w:54,h:54,type:'eye',used:false,lines:['그림 속 눈이 나를 따라본다.','착각일까.']},
+    {id:'mirror',x:153,y:215,w:54,h:68,type:'mirror',used:false,lines:['거울에 내가 보인다.','그런데... 저게 정말 나인가.','조금 다른 것 같다.']},
+    {id:'tv2',x:82,y:328,w:58,h:42,type:'tv',used:false,lines:['TV에서 잡음이 들린다.','채널을 바꿀 수 없다.']},
+    {id:'door2',x:154,y:92,w:52,h:72,type:'door',used:false,isExit:true,reqC:3,
+     lines:['아직 이 방을 다 조사하지 못했다.','무언가 더 살펴봐야 한다.'],openLines:['다음 방으로.','. . .']}
   ]},
   {bg:'#090404',fl:'#0C0505',wl:'#060202',req:1,extra:[],
    objects:[
-    {id:'eye3a',x:34,y:150,w:54,h:54,type:'eye',used:false,
-     lines:['벽 전체가 눈이다.','시선이 더 이상 멀리 있지 않다.']},
-    {id:'eye3b',x:286,y:168,w:54,h:54,type:'eye',used:false,
-     lines:['눈이 깜빡였다.','그것이 나를 향해 열렸다.']},
-    {id:'eye3c',x:172,y:285,w:54,h:54,type:'eye',used:false,
-     lines:['...','나를 보고 있다.']},
-    {id:'door3',x:154,y:86,w:52,h:74,type:'door',used:false,isExit:true,reqC:0,
+    {id:'eye3a',x:34,y:155,w:54,h:54,type:'eye',used:false,lines:['벽 전체가 눈이다.','시선이 더 이상 멀리 있지 않다.']},
+    {id:'eye3b',x:286,y:172,w:54,h:54,type:'eye',used:false,lines:['눈이 깜빡였다.','그것이 나를 향해 열렸다.']},
+    {id:'eye3c',x:172,y:288,w:54,h:54,type:'eye',used:false,lines:['...','나를 보고 있다.']},
+    {id:'door3',x:154,y:92,w:52,h:72,type:'door',used:false,isExit:true,reqC:0,
      lines:[],openLines:['저기다.','빨리 나가야 한다.']}
   ]}
 ];
 var room=null;
 
 function loadRoom(n){
-  phase=n;invCount=0;frozen=false;
-  SH.active=false;SH.x=-300;
+  phase=n;invCount=0;frozen=false;paused=false;
+  SH.active=false;SH.x=-300;phaseNotif=null;
   P.x=180;P.y=490;P.tx=180;P.ty=490;P.moving=false;
-  if(n<ROOMS.length){
-    room=JSON.parse(JSON.stringify(ROOMS[n]));
-    scene='room';
-  } else {
-    startEnding();
-  }
+  if(n<ROOMS.length){room=JSON.parse(JSON.stringify(ROOMS[n]));scene='room';}
+  else startEnding();
 }
-
 function d2(ax,ay,bx,by){return Math.hypot(ax-bx,ay-by);}
 
-function nearestObj(){
-  if(!room)return null;
-  var best=null,bd=PREACH;
-  for(var i=0;i<room.objects.length;i++){
-    var o=room.objects[i];
-    if(o.used&&!o.isExit)continue;
-    var dd=d2(P.x,P.y,o.x+o.w/2,o.y+o.h/2);
-    if(dd<bd){bd=dd;best=o;}
-  }
-  return best;
-}
-
-// 탭 위치가 오브젝트 위에 있고 플레이어가 근처에 있을 때만 반환
 function tappedObj(gx,gy){
   if(!room)return null;
-  var m=30; // 모바일 터치 여유 마진
+  var m=30;
   for(var i=0;i<room.objects.length;i++){
     var o=room.objects[i];
     if(o.used&&!o.isExit)continue;
     if(d2(P.x,P.y,o.x+o.w/2,o.y+o.h/2)<PREACH){
-      if(gx>=o.x-m&&gx<=o.x+o.w+m&&gy>=o.y-m&&gy<=o.y+o.h+m){
-        return o;
-      }
+      if(gx>=o.x-m&&gx<=o.x+o.w+m&&gy>=o.y-m&&gy<=o.y+o.h+m)return o;
     }
   }
   return null;
@@ -208,8 +172,8 @@ function tappedObj(gx,gy){
 
 function investigate(o){
   if(o.isExit){
-    if(invCount<(o.reqC||0)){showDlg(o.lines);}
-    else{showDlg(o.openLines||o.lines,function(){goNext();});}
+    if(invCount<(o.reqC||0))showDlg(o.lines);
+    else showDlg(o.openLines||o.lines,function(){goNext();});
     return;
   }
   o.used=true;invCount++;
@@ -218,33 +182,19 @@ function investigate(o){
 }
 
 function phaseEvent(){
-  if(phase===0){
-    if(room.extra)room.extra.forEach(function(e){e.vis=true;});
-  } else if(phase===1){
-    if(!room.furniture)room.furniture=[
-      {x:260,y:348,w:44,h:84,ox:0,oy:0},
-      {x:78,y:398,w:38,h:54,ox:0,oy:0},
-      {x:44,y:282,w:30,h:62,ox:0,oy:0}
-    ];
-    room.furniture.forEach(function(f){
-      f.ox+=(Math.random()-0.5)*28;
-      f.oy+=(Math.random()-0.5)*14;
-    });
-  } else if(phase===2){
-    SH.x=P.x+320;SH.y=P.y;SH.active=true;
+  if(phase===0){if(room.extra)room.extra.forEach(function(e){e.vis=true;});showNotif(NOTIF_MSGS[0]);}
+  else if(phase===1){
+    if(!room.furniture)room.furniture=[{x:260,y:352,w:44,h:84,ox:0,oy:0},{x:78,y:400,w:38,h:54,ox:0,oy:0},{x:44,y:285,w:30,h:62,ox:0,oy:0}];
+    room.furniture.forEach(function(f){f.ox+=(Math.random()-0.5)*28;f.oy+=(Math.random()-0.5)*14;});
+    showNotif(NOTIF_MSGS[1]);
   }
+  else if(phase===2){SH.x=P.x+320;SH.y=P.y;SH.active=true;showNotif(NOTIF_MSGS[2]);}
 }
 
-function goNext(){
-  frozen=true;
-  fadeIn(function(){loadRoom(phase+1);setTimeout(fadeOut,100);});
-}
-
+function goNext(){frozen=true;fadeIn(function(){loadRoom(phase+1);setTimeout(fadeOut,100);});}
 function shadowCatch(){
   SH.active=false;frozen=true;
-  showDlg(['너도 결국 보여지고 싶었잖아.','...'],function(){
-    fadeIn(function(){loadRoom(2);setTimeout(fadeOut,100);});
-  });
+  showDlg(['너도 결국 보여지고 싶었잖아.','...'],function(){fadeIn(function(){loadRoom(2);setTimeout(fadeOut,100);});});
 }
 
 // ─── Ending ───────────────────────────────────────────────────
@@ -255,7 +205,7 @@ function startEnding(){
 }
 function updateEnding(dt){
   endT+=dt;
-  if(endStep===0){if(d2(P.x,P.y,180,375)<8){P.moving=false;endStep=1;endT=0;}}
+  if(endStep===0&&d2(P.x,P.y,180,375)<8){P.moving=false;endStep=1;endT=0;}
   if(endStep===1&&endT>1.0){endStep=2;endT=0;}
   if(endStep===2){mirA=Math.min(1,endT/1.8);if(mirA>=1){endStep=3;endT=0;}}
   if(endStep===3){
@@ -263,27 +213,24 @@ function updateEnding(dt){
     if(eyeA>=1&&!endDone){
       endDone=true;endStep=4;
       setTimeout(function(){
-        showDlg(
-          ['거울 속 내가 웃고 있다.','나는 웃지 않았다.','모두가 나를 보고 있다.','이제야 모두가 날 봐준다.'],
-          function(){
-            setTimeout(function(){
-              fadeIn(function(){scene='title';phase=0;setTimeout(fadeOut,100);});
-            },1400);
-          }
-        );
+        showDlg(['거울 속 내가 웃고 있다.','나는 웃지 않았다.','모두가 나를 보고 있다.','이제야 모두가 날 봐준다.'],
+          function(){setTimeout(function(){fadeIn(function(){scene='title';phase=0;setTimeout(fadeOut,100);});},1400);});
       },600);
     }
   }
 }
 
-// ─── Game loop ────────────────────────────────────────────────
+// ─── Loop ─────────────────────────────────────────────────────
 var lastT=0;
 function tick(ts){
   var dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
-  if(scene==='room'||scene==='ending'){
-    updatePlayer(dt);
-    if(scene==='room'&&SH.active)updateShadow(dt);
-    if(scene==='ending')updateEnding(dt);
+  if(!paused){
+    if(scene==='room'||scene==='ending'){
+      updatePlayer(dt);
+      if(scene==='room'&&SH.active)updateShadow(dt);
+      if(scene==='ending')updateEnding(dt);
+    }
+    if(phaseNotif){phaseNotif.t+=dt;if(phaseNotif.t>=phaseNotif.max)phaseNotif=null;}
   }
   draw();
   requestAnimationFrame(tick);
@@ -295,7 +242,7 @@ function updatePlayer(dt){
   var s=PSPD*dt;
   P.x+=dx/dd*Math.min(s,dd);P.y+=dy/dd*Math.min(s,dd);
   P.x=Math.max(18,Math.min(GW-18,P.x));
-  P.y=Math.max(130,Math.min(GH-28,P.y));
+  P.y=Math.max(HH+96,Math.min(GH-PBH-30,P.y));
   P.wt+=dt;if(P.wt>0.18){P.wf=(P.wf+1)%4;P.wt=0;}
 }
 function updateShadow(dt){
@@ -306,96 +253,107 @@ function updateShadow(dt){
 
 // ─── Input ────────────────────────────────────────────────────
 function toGame(e){
-  var r=cv.getBoundingClientRect();
-  var sx=GW/r.width,sy=GH/r.height;
+  var r=cv.getBoundingClientRect(),sx=GW/r.width,sy=GH/r.height;
   var t=e.changedTouches?e.changedTouches[0]:e;
   return{x:(t.clientX-r.left)*sx,y:(t.clientY-r.top)*sy};
 }
+function inR(gx,gy,r){return gx>=r.x&&gx<=r.x+r.w&&gy>=r.y&&gy<=r.y+r.h;}
+function sliderHit(gx,gy,t){return gx>=t.x-10&&gx<=t.x+t.w+10&&gy>=t.y-16&&gy<=t.y+t.h+16;}
+
+cv.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  var p=toGame(e),gx=p.x,gy=p.y;
+  if(paused){
+    if(sliderHit(gx,gy,BGMT)){dragging='bgm_pause';return;}
+    if(sliderHit(gx,gy,SFXT)){dragging='sfx_pause';return;}
+  }
+  if(scene==='title'&&showSettings){
+    if(sliderHit(gx,gy,TBGMT)){dragging='bgm_title';return;}
+    if(sliderHit(gx,gy,TSFXT)){dragging='sfx_title';return;}
+  }
+  onTap(gx,gy);
+},{passive:false});
+
+cv.addEventListener('touchmove',function(e){
+  e.preventDefault();
+  if(!dragging)return;
+  var p=toGame(e),gx=p.x;
+  var trk=dragging==='bgm_pause'?BGMT:dragging==='sfx_pause'?SFXT:dragging==='bgm_title'?TBGMT:TSFXT;
+  var v=Math.max(0,Math.min(1,(gx-trk.x)/trk.w));
+  if(dragging.indexOf('bgm')>=0)bgmVol=v; else sfxVol=v;
+},{passive:false});
+
+cv.addEventListener('touchend',function(e){e.preventDefault();dragging=null;},{passive:false});
+cv.addEventListener('mousedown',function(e){var p=toGame(e);onTap(p.x,p.y);});
+dlgEl.addEventListener('touchstart',function(e){e.preventDefault();advanceDlg();},{passive:false});
+dlgEl.addEventListener('mousedown',function(){advanceDlg();});
+
 function onTap(gx,gy){
   if(scene==='title'){
-    if(gx>100&&gx<260&&gy>345&&gy<410){
-      fadeIn(function(){loadRoom(0);setTimeout(fadeOut,100);});
-    }
+    if(inR(gx,gy,SICON)){showSettings=!showSettings;return;}
+    if(showSettings){showSettings=false;return;}
+    if(gx>100&&gx<260&&gy>345&&gy<410){fadeIn(function(){loadRoom(0);setTimeout(fadeOut,100);});}
     return;
   }
+  if(paused){
+    if(inR(gx,gy,RBTN)){paused=false;return;}
+    if(inR(gx,gy,STBTN)){paused=false;fadeIn(function(){loadRoom(0);setTimeout(fadeOut,100);});return;}
+    if(inR(gx,gy,TTBTN)){paused=false;fadeIn(function(){scene='title';phase=0;setTimeout(fadeOut,100);});return;}
+    return;
+  }
+  if((scene==='room'||scene==='ending')&&inR(gx,gy,PBTN)){paused=true;return;}
   if(dlgActive){advanceDlg();return;}
   if(scene==='room'&&!frozen){
-    // 탭 위치가 오브젝트 위에 있을 때만 조사, 아니면 이동
     var o=tappedObj(gx,gy);
     if(o){investigate(o);return;}
     P.tx=gx;P.ty=gy;P.moving=true;P.flip=gx<P.x;
   }
 }
-cv.addEventListener('touchstart',function(e){
-  e.preventDefault();var p=toGame(e);onTap(p.x,p.y);
-},{passive:false});
-cv.addEventListener('mousedown',function(e){
-  var p=toGame(e);onTap(p.x,p.y);
-});
-dlgEl.addEventListener('touchstart',function(e){
-  e.preventDefault();advanceDlg();
-},{passive:false});
-dlgEl.addEventListener('mousedown',function(){advanceDlg();});
 
-// ─── Drawing ──────────────────────────────────────────────────
+// ─── Draw helpers ─────────────────────────────────────────────
+function rr(x,y,w,h,r){
+  g.beginPath();g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.arcTo(x+w,y,x+w,y+r,r);
+  g.lineTo(x+w,y+h-r);g.arcTo(x+w,y+h,x+w-r,y+h,r);
+  g.lineTo(x+r,y+h);g.arcTo(x,y+h,x,y+h-r,r);
+  g.lineTo(x,y+r);g.arcTo(x,y,x+r,y,r);g.closePath();
+}
+
 function eyeShape(x,y,w,h,closed){
   var mx=x+w/2,my=y+h/2,rx=w/2,ry=h/2.2;
   g.save();
-  g.fillStyle='#c8b4a4';
-  g.beginPath();g.ellipse(mx,my,rx,ry,0,0,Math.PI*2);g.fill();
+  g.fillStyle='#c8b4a4';g.beginPath();g.ellipse(mx,my,rx,ry,0,0,Math.PI*2);g.fill();
   if(!closed){
-    g.fillStyle='#4a0a0a';
-    g.beginPath();g.ellipse(mx,my,rx*0.5,ry*0.68,0,0,Math.PI*2);g.fill();
-    g.fillStyle='#040101';
-    g.beginPath();g.ellipse(mx,my,rx*0.2,ry*0.32,0,0,Math.PI*2);g.fill();
+    g.fillStyle='#4a0a0a';g.beginPath();g.ellipse(mx,my,rx*0.5,ry*0.68,0,0,Math.PI*2);g.fill();
+    g.fillStyle='#040101';g.beginPath();g.ellipse(mx,my,rx*0.2,ry*0.32,0,0,Math.PI*2);g.fill();
     g.strokeStyle='rgba(160,40,40,0.35)';g.lineWidth=0.7;
-    for(var i=0;i<5;i++){
-      var a=i/5*Math.PI*2;
-      g.beginPath();
-      g.moveTo(mx+Math.cos(a)*rx*0.52,my+Math.sin(a)*ry*0.52);
-      g.lineTo(mx+Math.cos(a)*rx*0.9,my+Math.sin(a)*ry*0.85);
-      g.stroke();
-    }
-  } else {
-    g.fillStyle='#180808';
-    g.beginPath();g.ellipse(mx,my,rx+1,ry+1,0,0,Math.PI*2);g.fill();
-  }
+    for(var i=0;i<5;i++){var a=i/5*Math.PI*2;g.beginPath();g.moveTo(mx+Math.cos(a)*rx*0.52,my+Math.sin(a)*ry*0.52);g.lineTo(mx+Math.cos(a)*rx*0.9,my+Math.sin(a)*ry*0.85);g.stroke();}
+  } else {g.fillStyle='#180808';g.beginPath();g.ellipse(mx,my,rx+1,ry+1,0,0,Math.PI*2);g.fill();}
   g.restore();
 }
 
 function drawPlayer(x,y,flip,monster){
   g.save();g.translate(x,y);if(flip)g.scale(-1,1);
-  var bob=P.moving?Math.sin(P.wf*Math.PI*0.5)*2:0;
-  g.translate(0,bob);
+  var bob=P.moving?Math.sin(P.wf*Math.PI*0.5)*2:0;g.translate(0,bob);
   if(monster){
-    g.fillStyle='#c0a090';g.fillRect(-10,0,20,28);
-    g.fillRect(-20,4,10,5);g.fillRect(10,4,10,5);
-    g.fillStyle='#d4b8a8';
-    g.beginPath();g.arc(0,-10,10,0,Math.PI*2);g.fill();
+    g.fillStyle='#c0a090';g.fillRect(-10,0,20,28);g.fillRect(-20,4,10,5);g.fillRect(10,4,10,5);
+    g.fillStyle='#d4b8a8';g.beginPath();g.arc(0,-10,10,0,Math.PI*2);g.fill();
     g.fillStyle='#20080c';
-    var eyes=[[-4,-13],[3,-11],[0,-7]];
-    for(var i=0;i<eyes.length;i++){
-      g.beginPath();g.arc(eyes[i][0],eyes[i][1],2.2,0,Math.PI*2);g.fill();
-    }
+    [[-4,-13],[3,-11],[0,-7]].forEach(function(e){g.beginPath();g.arc(e[0],e[1],2.2,0,Math.PI*2);g.fill();});
   } else {
-    g.fillStyle='#ebebeb';
-    g.beginPath();g.moveTo(-7,0);g.lineTo(7,0);g.lineTo(9,24);g.lineTo(-9,24);g.closePath();g.fill();
+    g.fillStyle='#ebebeb';g.beginPath();g.moveTo(-7,0);g.lineTo(7,0);g.lineTo(9,24);g.lineTo(-9,24);g.closePath();g.fill();
     g.fillRect(-5,-9,10,11);
     g.fillStyle='#f2e8d8';g.beginPath();g.arc(0,-15,7.5,0,Math.PI*2);g.fill();
-    g.fillStyle='#141008';g.fillRect(-8,-21,16,10);
-    g.beginPath();g.arc(0,-18,8,0,Math.PI);g.fill();
+    g.fillStyle='#141008';g.fillRect(-8,-21,16,10);g.beginPath();g.arc(0,-18,8,0,Math.PI);g.fill();
     g.fillStyle='#080808';g.fillRect(-3,-16,2,2);g.fillRect(1,-16,2,2);
   }
   g.restore();
 }
 
 function drawShadow(x,y){
-  g.save();g.translate(x,y);g.globalAlpha=0.92;
-  g.fillStyle='#060308';
+  g.save();g.translate(x,y);g.globalAlpha=0.92;g.fillStyle='#060308';
   g.fillRect(-11,-32,22,54);g.fillRect(-26,-16,15,6);g.fillRect(11,-16,15,6);
   g.beginPath();g.arc(0,-42,13,0,Math.PI*2);g.fill();
-  g.fillStyle='#ffffff';
-  g.fillRect(-5,-46,4,4);g.fillRect(1,-46,4,4);
+  g.fillStyle='#fff';g.fillRect(-5,-46,4,4);g.fillRect(1,-46,4,4);
   g.globalAlpha=1;g.restore();
 }
 
@@ -403,6 +361,17 @@ function vignette(){
   var gr=g.createRadialGradient(GW/2,GH/2,GH*0.28,GW/2,GH/2,GH*0.74);
   gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,0.7)');
   g.fillStyle=gr;g.fillRect(0,0,GW,GH);
+}
+
+function drawSlider(trk,val){
+  g.fillStyle='rgba(30,8,8,0.8)';rr(trk.x,trk.y-4,trk.w,trk.h+8,4);g.fill();
+  g.strokeStyle='rgba(100,25,25,0.5)';g.lineWidth=1;rr(trk.x,trk.y-4,trk.w,trk.h+8,4);g.stroke();
+  if(val>0){g.fillStyle='rgba(180,40,40,0.65)';g.fillRect(trk.x+1,trk.y-3,(trk.w-2)*val,trk.h+6);}
+  var tx=trk.x+trk.w*val;
+  g.fillStyle='#d05050';g.beginPath();g.arc(tx,trk.y+3,9,0,Math.PI*2);g.fill();
+  g.strokeStyle='rgba(220,80,80,0.4)';g.lineWidth=1;g.beginPath();g.arc(tx,trk.y+3,9,0,Math.PI*2);g.stroke();
+  g.fillStyle='rgba(180,100,100,0.8)';g.font='9px Courier New';g.textAlign='right';
+  g.fillText(Math.round(val*100)+'%',trk.x+trk.w+28,trk.y+6);
 }
 
 function drawObj(o){
@@ -418,107 +387,227 @@ function drawObj(o){
     g.strokeStyle='#2e1010';g.lineWidth=1.5;g.strokeRect(x,y,w,h);
     g.beginPath();g.moveTo(x+w/2,y);g.lineTo(x+w/2,y+h);g.stroke();
     g.beginPath();g.moveTo(x,y+h/2);g.lineTo(x+w,y+h/2);g.stroke();
-    g.globalAlpha=0.45;eyeShape(x+w/2-11,y+h/2-9,22,18);g.globalAlpha=1;
+    g.globalAlpha=0.4;eyeShape(x+w/2-11,y+h/2-9,22,18);g.globalAlpha=1;
   } else if(o.type==='tv'){
     g.fillStyle='#1a0c0c';g.fillRect(x-3,y-3,w+6,h+6);
     g.fillStyle='#0d0808';g.fillRect(x,y,w,h);
-    for(var i=0;i<35;i++){
-      g.fillStyle='rgba(200,170,170,'+(Math.random()*0.4+0.05)+')';
-      g.fillRect(x+Math.random()*w,y+Math.random()*h,2,1);
-    }
+    for(var i=0;i<30;i++){g.fillStyle='rgba(200,170,170,'+(Math.random()*0.35+0.05)+')';g.fillRect(x+Math.random()*w,y+Math.random()*h,2,1);}
   } else if(o.type==='mirror'){
     g.fillStyle='#221010';g.fillRect(x-5,y-5,w+10,h+10);
     g.fillStyle='#120a0a';g.fillRect(x,y,w,h);
     g.fillStyle='rgba(160,110,110,0.07)';g.fillRect(x+4,y+4,7,h-8);
     if(phase>=1){
       g.strokeStyle='rgba(180,100,100,0.12)';g.lineWidth=1;
-      for(var i=0;i<5;i++){
-        g.beginPath();
-        g.moveTo(x,y+i*(h/5));
-        g.quadraticCurveTo(x+w/2,y+i*(h/5)+10*Math.sin(Date.now()/500+i),x+w,y+i*(h/5));
-        g.stroke();
-      }
+      for(var j=0;j<5;j++){g.beginPath();g.moveTo(x,y+j*(h/5));g.quadraticCurveTo(x+w/2,y+j*(h/5)+10*Math.sin(Date.now()/500+j),x+w,y+j*(h/5));g.stroke();}
     }
   } else if(o.type==='door'){
     var open=invCount>=(o.reqC||0);
     g.fillStyle='#1e0e0e';g.fillRect(x-3,y-3,w+6,h+3);
-    g.fillStyle=open?'#080404':'#160c0c';g.fillRect(x,y,w,h);
+    g.fillStyle=open?'#0a0505':'#160c0c';g.fillRect(x,y,w,h);
     g.strokeStyle='#2e1010';g.lineWidth=1;
-    g.strokeRect(x+5,y+6,w-10,(h-16)/2);
-    g.strokeRect(x+5,y+6+(h-16)/2+8,w-10,(h-16)/2);
+    g.strokeRect(x+5,y+6,w-10,(h-16)/2);g.strokeRect(x+5,y+6+(h-16)/2+8,w-10,(h-16)/2);
     g.fillStyle='#3a2020';g.beginPath();g.arc(x+w-10,y+h/2,3,0,Math.PI*2);g.fill();
-    if(open){g.fillStyle='rgba(120,60,60,0.15)';g.fillRect(x+1,y,3,h);}
+    if(open){g.fillStyle='rgba(160,60,60,0.15)';g.fillRect(x+1,y,w-2,h);}
   }
-  // 조사 가능 표시: 플레이어가 근처에 있을 때
   if(!o.used||o.isExit){
     if(d2(P.x,P.y,o.x+o.w/2,o.y+o.h/2)<PREACH){
-      g.fillStyle='rgba(185,90,90,0.9)';
-      g.font='10px Courier New';g.textAlign='center';
-      g.fillText('[ 조사 ]',o.x+o.w/2,o.y-7);
+      var px=o.x+o.w/2,py=o.y-16;
+      g.fillStyle='rgba(16,4,4,0.88)';rr(px-30,py-14,60,18,4);g.fill();
+      g.strokeStyle='rgba(180,55,55,0.7)';g.lineWidth=0.8;rr(px-30,py-14,60,18,4);g.stroke();
+      g.fillStyle='#e08888';g.font='bold 9px Courier New';g.textAlign='center';g.fillText('[ 조사 ]',px,py);
     }
   }
 }
 
+// ─── HUD ──────────────────────────────────────────────────────
+var PNAMES=['관찰','왜곡','침식','엔딩'];
+function drawHUD(){
+  g.fillStyle='rgba(4,1,1,0.90)';g.fillRect(0,0,GW,HH);
+  g.strokeStyle='rgba(120,30,30,0.35)';g.lineWidth=1;
+  g.beginPath();g.moveTo(0,HH);g.lineTo(GW,HH);g.stroke();
+
+  // Phase dots + labels
+  for(var i=0;i<4;i++){
+    var cx=18+i*40,cy=16;
+    g.fillStyle=i===phase?'#d04040':i<phase?'rgba(120,30,30,0.6)':'rgba(50,15,15,0.5)';
+    g.beginPath();g.arc(cx,cy,i===phase?5.5:4,0,Math.PI*2);g.fill();
+    if(i<3){
+      g.strokeStyle=i<phase?'rgba(140,40,40,0.5)':'rgba(50,15,15,0.4)';
+      g.lineWidth=1;g.setLineDash([3,3]);
+      g.beginPath();g.moveTo(cx+6,cy);g.lineTo(cx+34,cy);g.stroke();
+      g.setLineDash([]);
+    }
+    g.fillStyle=i===phase?'#c07070':i<phase?'rgba(120,50,50,0.7)':'rgba(70,30,30,0.5)';
+    g.font=(i===phase)?'bold 8px Courier New':'8px Courier New';
+    g.textAlign='center';g.fillText(PNAMES[i],cx,HH-6);
+  }
+
+  // Investigation pips
+  if(room&&room.req>0){
+    var tot=room.req,cnt=Math.min(invCount,tot),hx=GW/2+26;
+    g.fillStyle='rgba(140,70,70,0.7)';g.font='9px Courier New';g.textAlign='center';
+    g.fillText('조사',hx,13);
+    for(var j=0;j<tot;j++){
+      var px=hx-((tot-1)*9)+j*18;
+      g.fillStyle=j<cnt?'#d04040':'rgba(60,20,20,0.5)';
+      g.beginPath();g.arc(px,29,5,0,Math.PI*2);g.fill();
+      if(j<cnt){g.fillStyle='rgba(255,180,180,0.3)';g.beginPath();g.arc(px,29,3,0,Math.PI*2);g.fill();}
+    }
+  }
+
+  // Pause button
+  g.fillStyle='rgba(50,12,12,0.75)';rr(PBTN.x,PBTN.y,PBTN.w,PBTN.h,5);g.fill();
+  g.strokeStyle='rgba(140,40,40,0.45)';g.lineWidth=1;rr(PBTN.x,PBTN.y,PBTN.w,PBTN.h,5);g.stroke();
+  var bx=PBTN.x+PBTN.w/2,by=PBTN.y+PBTN.h/2;
+  g.fillStyle='#c07878';g.fillRect(bx-7,by-7,5,14);g.fillRect(bx+2,by-7,5,14);
+}
+
+// ─── Phase bar ────────────────────────────────────────────────
+function drawPhaseBar(){
+  var by=GH-PBH;
+  g.fillStyle='rgba(4,1,1,0.92)';g.fillRect(0,by,GW,PBH);
+  g.strokeStyle='rgba(100,25,25,0.35)';g.lineWidth=1;
+  g.beginPath();g.moveTo(0,by);g.lineTo(GW,by);g.stroke();
+  var sw=GW/4,labels=['Phase 1','Phase 2','Phase 3','Phase 4'];
+  for(var i=0;i<4;i++){
+    var sx=i*sw;
+    if(i<phase){g.fillStyle='rgba(100,20,20,0.45)';g.fillRect(sx+1,by+1,sw-2,PBH-2);}
+    else if(i===phase){
+      g.fillStyle='rgba(160,35,35,0.28)';g.fillRect(sx+1,by+1,sw-2,PBH-2);
+      g.strokeStyle='rgba(210,55,55,0.65)';g.lineWidth=2;
+      g.beginPath();g.moveTo(sx+3,by+1.5);g.lineTo(sx+sw-3,by+1.5);g.stroke();
+    }
+    if(i>0){g.strokeStyle='rgba(70,18,18,0.55)';g.lineWidth=1;g.beginPath();g.moveTo(sx,by);g.lineTo(sx,by+PBH);g.stroke();}
+    g.font=i===phase?'bold 10px Courier New':'10px Courier New';
+    g.fillStyle=i===phase?'#e08080':i<phase?'rgba(150,55,55,0.7)':'rgba(70,35,35,0.5)';
+    g.textAlign='center';g.fillText(labels[i],sx+sw/2,by+22);
+  }
+}
+
+// ─── Notification ─────────────────────────────────────────────
+function drawNotif(){
+  if(!phaseNotif)return;
+  var a=1,fd=0.5;
+  if(phaseNotif.t<0.3)a=phaseNotif.t/0.3;
+  if(phaseNotif.t>phaseNotif.max-fd)a=(phaseNotif.max-phaseNotif.t)/fd;
+  a=Math.max(0,Math.min(1,a));
+  g.save();g.globalAlpha=a;
+  var pw=230,ph=52,px=(GW-pw)/2,py=56;
+  g.fillStyle='rgba(8,1,1,0.96)';rr(px,py,pw,ph,6);g.fill();
+  g.strokeStyle='rgba(200,45,45,0.75)';g.lineWidth=1.5;rr(px,py,pw,ph,6);g.stroke();
+  eyeShape(px+16,py+ph/2-10,20,18);
+  g.fillStyle='rgba(210,80,80,0.95)';g.font='bold 11px Courier New';g.textAlign='center';
+  g.fillText(phaseNotif.msg,px+pw/2+8,py+22);
+  g.fillStyle='rgba(150,55,55,0.7)';g.font='9px Courier New';
+  g.fillText('— 이벤트 발생 —',px+pw/2+8,py+38);
+  g.restore();
+}
+
+// ─── Pause overlay ────────────────────────────────────────────
+function drawPause(){
+  g.fillStyle='rgba(0,0,0,0.84)';g.fillRect(0,0,GW,GH);
+  var pw=244,ph=360,px=(GW-pw)/2,py=(GH-ph)/2-10;
+  g.fillStyle='rgba(7,1,1,0.98)';rr(px,py,pw,ph,10);g.fill();
+  g.strokeStyle='rgba(180,40,40,0.55)';g.lineWidth=1.5;rr(px,py,pw,ph,10);g.stroke();
+  g.fillStyle='#c06060';g.font='bold 22px Courier New';g.textAlign='center';
+  g.fillText('PAUSED',GW/2,py+46);
+  g.strokeStyle='rgba(120,35,35,0.35)';g.lineWidth=1;
+  g.beginPath();g.moveTo(px+20,py+58);g.lineTo(px+pw-20,py+58);g.stroke();
+
+  function btn(r,label,hi){
+    g.fillStyle=hi?'rgba(150,28,28,0.82)':'rgba(35,8,8,0.82)';rr(r.x,r.y,r.w,r.h,6);g.fill();
+    g.strokeStyle=hi?'rgba(220,60,60,0.65)':'rgba(100,25,25,0.45)';g.lineWidth=1;rr(r.x,r.y,r.w,r.h,6);g.stroke();
+    g.fillStyle=hi?'#f0b0b0':'#906060';g.font='12px Courier New';g.textAlign='center';
+    g.fillText(label,r.x+r.w/2,r.y+r.h/2+4);
+  }
+  btn(RBTN,'계속하기',true);btn(STBTN,'처음부터',false);btn(TTBTN,'타이틀로',false);
+
+  g.fillStyle='rgba(130,55,55,0.75)';g.font='10px Courier New';g.textAlign='left';
+  g.fillText('BGM',BGMT.x-42,BGMT.y+5);drawSlider(BGMT,bgmVol);
+  g.fillText('SFX',SFXT.x-42,SFXT.y+5);drawSlider(SFXT,sfxVol);
+}
+
+// ─── Room ─────────────────────────────────────────────────────
 function drawRoom(){
   if(!room)return;
   g.fillStyle=room.wl;g.fillRect(0,0,GW,GH);
-  g.fillStyle=room.bg;g.fillRect(8,76,GW-16,GH-190);
-  g.fillStyle=room.fl;g.fillRect(0,GH-115,GW,115);
+  g.fillStyle=room.bg;g.fillRect(8,HH+10,GW-16,GH-HH-10-PBH-88);
+  var fy=GH-PBH-88;
+  g.fillStyle=room.fl;g.fillRect(0,fy,GW,88);
   g.strokeStyle=room.wl;g.lineWidth=2;
-  g.beginPath();g.moveTo(0,GH-115);g.lineTo(GW,GH-115);g.stroke();
-  g.fillStyle=room.wl;g.fillRect(0,72,GW,14);
-  g.fillRect(0,GH-118,GW,6);
+  g.beginPath();g.moveTo(0,fy);g.lineTo(GW,fy);g.stroke();
+  g.fillStyle=room.wl;g.fillRect(0,HH+8,GW,8);g.fillRect(0,fy-3,GW,5);
+  // Depth shadows on walls
+  g.fillStyle='rgba(0,0,0,0.12)';g.fillRect(8,HH+18,14,GH-HH-18-PBH-88);
+  g.fillRect(GW-22,HH+18,14,GH-HH-18-PBH-88);
   if(phase===2){
-    var ep=[[25,140],[305,155],[20,260],[318,280],[20,390],[314,400]];
-    for(var i=0;i<ep.length;i++)eyeShape(ep[i][0],ep[i][1],36,28);
+    [[25,145],[305,160],[20,265],[318,285],[20,385],[314,405]].forEach(function(e){eyeShape(e[0],e[1],36,28);});
   }
   if(room.furniture){
     room.furniture.forEach(function(f){
       g.fillStyle='#1a0c0c';g.fillRect(f.x+f.ox,f.y+f.oy,f.w,f.h);
-      g.strokeStyle='#2a1010';g.lineWidth=1;
-      g.strokeRect(f.x+f.ox,f.y+f.oy,f.w,f.h);
+      g.strokeStyle='#2a1010';g.lineWidth=1;g.strokeRect(f.x+f.ox,f.y+f.oy,f.w,f.h);
     });
   }
-  if(room.extra){
-    room.extra.forEach(function(e){
-      if(e.vis){g.globalAlpha=0.8;eyeShape(e.x,e.y,e.w,e.h);g.globalAlpha=1;}
-    });
-  }
-  room.objects.forEach(function(o){drawObj(o);});
+  if(room.extra){room.extra.forEach(function(e){if(e.vis){g.globalAlpha=0.8;eyeShape(e.x,e.y,e.w,e.h);g.globalAlpha=1;}});}
+  room.objects.forEach(drawObj);
 }
 
-var END_EYES=[[45,135],[300,150],[30,250],[322,270],[25,390],[318,410],
-              [170,100],[185,490],[80,460],[275,465],[140,300],[230,310]];
-
+// ─── Title ────────────────────────────────────────────────────
 function drawTitle(){
   g.fillStyle='#050101';g.fillRect(0,0,GW,GH);
-  g.globalAlpha=0.7;
-  eyeShape(40,90,70,55);eyeShape(248,110,70,55);eyeShape(135,545,90,65);
-  g.globalAlpha=0.28;
-  eyeShape(10,280,40,32);eyeShape(310,300,40,32);
+  g.globalAlpha=0.55;eyeShape(18,76,82,62);eyeShape(258,96,82,62);eyeShape(112,542,112,78);
+  g.globalAlpha=0.18;eyeShape(0,278,44,34);eyeShape(316,300,42,32);eyeShape(158,18,52,40);
   g.globalAlpha=1;
-  g.fillStyle='#c08080';g.font='bold 44px Courier New';g.textAlign='center';
-  g.fillText('ROOM:EYE',GW/2,220);
-  g.fillStyle='#6a2e2e';g.font='13px Courier New';
-  g.fillText('타인의 시선에 갇힌 방',GW/2,252);
-  g.fillStyle='rgba(100,40,40,0.55)';g.font='11px Courier New';
-  g.fillText('2D 심리 인디 호러',GW/2,276);
-  g.fillStyle='#220a0a';g.fillRect(100,348,160,58);
-  g.strokeStyle='#601818';g.lineWidth=1.2;g.strokeRect(100,348,160,58);
-  g.fillStyle='#c09090';g.font='18px Courier New';
-  g.fillText('시작하기',GW/2,385);
-  g.fillStyle='rgba(80,30,30,0.5)';g.font='11px Courier New';
-  g.fillText('오브젝트 탭 → 조사 · 다른 곳 탭 → 이동',GW/2,492);
+  g.strokeStyle='rgba(100,25,25,0.3)';g.lineWidth=1;g.strokeRect(14,14,GW-28,GH-28);
+  g.strokeStyle='rgba(70,16,16,0.18)';g.strokeRect(22,22,GW-44,GH-44);
+
+  // Title box
+  g.fillStyle='rgba(16,4,4,0.72)';rr(38,168,GW-76,124,8);g.fill();
+  g.strokeStyle='rgba(160,38,38,0.45)';g.lineWidth=1;rr(38,168,GW-76,124,8);g.stroke();
+  g.fillStyle='#d48080';g.font='bold 46px Courier New';g.textAlign='center';g.fillText('ROOM:EYE',GW/2,228);
+  g.strokeStyle='rgba(160,65,65,0.28)';g.lineWidth=1;g.beginPath();g.moveTo(58,240);g.lineTo(GW-58,240);g.stroke();
+  g.fillStyle='#7a3232';g.font='11px Courier New';g.fillText('타인의 시선에 갇힌 방',GW/2,258);
+  g.fillStyle='rgba(100,38,38,0.6)';g.font='10px Courier New';g.fillText('2D 심리 인디 호러',GW/2,276);
+
+  // Start button
+  g.fillStyle='rgba(105,18,18,0.72)';rr(100,348,160,52,8);g.fill();
+  g.strokeStyle='rgba(210,55,55,0.58)';g.lineWidth=1.5;rr(100,348,160,52,8);g.stroke();
+  g.fillStyle='#f0a0a0';g.font='bold 18px Courier New';g.textAlign='center';g.fillText('시작하기',GW/2,381);
+
+  // Settings icon (gear)
+  var gx=SICON.x+15,gy=SICON.y+14;
+  g.fillStyle='rgba(100,25,25,0.65)';g.beginPath();g.arc(gx,gy,13,0,Math.PI*2);g.fill();
+  g.strokeStyle='rgba(180,55,55,0.5)';g.lineWidth=1;g.beginPath();g.arc(gx,gy,13,0,Math.PI*2);g.stroke();
+  for(var i=0;i<8;i++){var a=i/8*Math.PI*2;g.fillStyle='rgba(180,65,65,0.65)';g.fillRect(gx+Math.cos(a)*11-2,gy+Math.sin(a)*11-2,4,4);}
+  g.fillStyle='rgba(6,1,1,0.92)';g.beginPath();g.arc(gx,gy,5,0,Math.PI*2);g.fill();
+
+  // Settings panel
+  if(showSettings){
+    var spx=18,spy=48,spw=GW-36,sph=192;
+    g.fillStyle='rgba(6,1,1,0.97)';rr(spx,spy,spw,sph,8);g.fill();
+    g.strokeStyle='rgba(175,38,38,0.58)';g.lineWidth=1.5;rr(spx,spy,spw,sph,8);g.stroke();
+    g.fillStyle='#c06060';g.font='bold 13px Courier New';g.textAlign='center';g.fillText('사운드 설정',GW/2,spy+24);
+    g.strokeStyle='rgba(120,35,35,0.35)';g.lineWidth=1;g.beginPath();g.moveTo(spx+18,spy+34);g.lineTo(spx+spw-18,spy+34);g.stroke();
+    g.fillStyle='rgba(145,58,58,0.8)';g.font='11px Courier New';g.textAlign='left';
+    g.fillText('BGM',TBGMT.x-42,TBGMT.y+5);drawSlider(TBGMT,bgmVol);
+    g.fillText('SFX',TSFXT.x-42,TSFXT.y+5);drawSlider(TSFXT,sfxVol);
+    g.fillStyle='rgba(100,45,45,0.6)';g.font='10px Courier New';g.textAlign='center';
+    g.fillText('(탭하여 닫기)',GW/2,spy+sph-12);
+  }
+
+  g.fillStyle='rgba(75,28,28,0.5)';g.font='10px Courier New';g.textAlign='center';
+  g.fillText('오브젝트 탭 → 조사  ·  빈 곳 탭 → 이동',GW/2,GH-16);
   vignette();
 }
 
+// ─── Ending ───────────────────────────────────────────────────
+var END_EYES=[[45,135],[300,150],[30,250],[322,270],[25,390],[318,410],[170,100],[185,490],[80,460],[275,465],[140,300],[230,310]];
 function drawEnding(){
   g.fillStyle='#060202';g.fillRect(0,0,GW,GH);
-  g.fillStyle='#0a0404';g.fillRect(8,76,GW-16,GH-190);
-  g.fillStyle='#080303';g.fillRect(0,GH-115,GW,115);
-  g.strokeStyle='#060202';g.lineWidth=2;
-  g.beginPath();g.moveTo(0,GH-115);g.lineTo(GW,GH-115);g.stroke();
-  g.fillStyle='#060202';g.fillRect(0,72,GW,14);
+  g.fillStyle='#0a0404';g.fillRect(8,HH+10,GW-16,GH-HH-10-PBH-88);
+  g.fillStyle='#080303';g.fillRect(0,GH-PBH-88,GW,88);
+  g.fillStyle='#060202';g.fillRect(0,HH+8,GW,8);
   g.fillStyle='#200e0e';g.fillRect(144,196,72,96);
   g.fillStyle='#100808';g.fillRect(148,200,64,88);
   g.fillStyle='rgba(140,90,90,0.06)';g.fillRect(152,204,7,80);
@@ -527,22 +616,17 @@ function drawEnding(){
     g.fillStyle='#c0a090';g.fillRect(166,216,28,36);
     g.fillStyle='#d4b0a0';g.beginPath();g.arc(180,213,11,0,Math.PI*2);g.fill();
     g.fillStyle='#1e0608';
-    var me=[[-4,-14],[3,-12],[0,-8]];
-    for(var i=0;i<me.length;i++){
-      g.beginPath();g.arc(180+me[i][0],213+me[i][1],2.5,0,Math.PI*2);g.fill();
-    }
+    [[-4,-14],[3,-12],[0,-8]].forEach(function(e){g.beginPath();g.arc(180+e[0],213+e[1],2.5,0,Math.PI*2);g.fill();});
     g.fillStyle='#b08878';g.fillRect(148,224,18,6);g.fillRect(194,224,18,6);
     g.restore();
   }
-  if(eyeA>0){
-    g.save();g.globalAlpha=eyeA*0.85;
-    END_EYES.forEach(function(e){eyeShape(e[0]-18,e[1]-14,36,28);});
-    g.restore();
-  }
+  if(eyeA>0){g.save();g.globalAlpha=eyeA*0.85;END_EYES.forEach(function(e){eyeShape(e[0]-18,e[1]-14,36,28);});g.restore();}
   drawPlayer(P.x,P.y,P.flip,mirA>0.6);
-  vignette();
+  vignette();drawHUD();drawPhaseBar();
+  if(paused)drawPause();
 }
 
+// ─── Main draw ────────────────────────────────────────────────
 function draw(){
   g.clearRect(0,0,GW,GH);
   if(scene==='title'){drawTitle();return;}
@@ -550,15 +634,8 @@ function draw(){
   drawRoom();
   if(SH.active)drawShadow(SH.x,SH.y);
   drawPlayer(P.x,P.y,P.flip,false);
-  vignette();
-  var labels=['관찰','왜곡','침식','엔딩'];
-  g.font='10px Courier New';
-  g.fillStyle='rgba(120,30,30,0.6)';g.textAlign='right';
-  g.fillText('PHASE: '+labels[phase],GW-10,18);
-  if(room&&room.req>0){
-    g.textAlign='left';
-    g.fillText('조사: '+Math.min(invCount,room.req)+'/'+room.req,10,18);
-  }
+  vignette();drawNotif();drawHUD();drawPhaseBar();
+  if(paused)drawPause();
 }
 
 requestAnimationFrame(tick);
