@@ -54,7 +54,7 @@ resize();
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,200);});
 
-// ─── State ────────────────────────────────────────────────────
+// ─── State ─────────────────────────────────────────────
 var scene='title',phase=0,invCount=0,dlgActive=false,frozen=false;
 var paused=false,showSettings=false;
 var bgmVol=0.7,sfxVol=0.8,dragging=null;
@@ -62,6 +62,14 @@ var phaseNotif=null;
 var P={x:180,y:490,tx:180,ty:490,moving:false,flip:false,wf:0,wt:0};
 var PSPD=95,PREACH=62;
 var SH={x:-300,y:450,active:false,spd:60};
+
+// ─── Glitch transition state ──────────────────────────────
+var GLT={active:false,t:0,dur:1.9,loadAt:0.72,loaded:false,next:0,
+         ca:0,shX:0,shY:0,bars:[],flash:0};
+var offCv=document.createElement('canvas');
+offCv.width=GW;offCv.height=GH;
+var offG=offCv.getContext('2d');
+var _gBuf=new Uint8ClampedArray(GW*GH*4);
 
 // UI zones
 var PBTN={x:GW-42,y:6,w:36,h:32};
@@ -74,7 +82,7 @@ var SICON={x:GW-42,y:10,w:30,h:28};
 var TBGMT={x:70,y:172,w:GW-140,h:6};
 var TSFXT={x:70,y:212,w:GW-140,h:6};
 
-// ─── Dialogue ─────────────────────────────────────────────────
+// ─── Dialogue ─────────────────────────────────────────────
 var DQ={lines:[],i:0,n:0,done:false,tim:null,cb:null};
 function showDlg(lines,cb){
   if(!lines||!lines.length){if(cb)cb();return;}
@@ -108,39 +116,39 @@ function advanceDlg(){
   }
 }
 
-// ─── Fade ─────────────────────────────────────────────────────
+// ─── Fade ─────────────────────────────────────────────────
 function fadeIn(cb){fadeEl.style.transition='opacity 0.75s';fadeEl.style.opacity='1';setTimeout(function(){if(cb)cb();},750);}
 function fadeOut(){fadeEl.style.transition='opacity 0.75s';fadeEl.style.opacity='0';}
 
-// ─── Notification ─────────────────────────────────────────────
+// ─── Notification ───────────────────────────────────────────
 var NOTIF_MSGS=['무언가... 보고 있다','방이 흔들린다','뒤에서 발소리가 들린다'];
 function showNotif(msg){phaseNotif={msg:msg,t:0,max:2.8};}
 
-// ─── Room data ────────────────────────────────────────────────
+// ─── Room data ────────────────────────────────────────────
 var ROOMS=[
   {bg:'#100706',fl:'#140907',wl:'#0C0504',req:3,
    extra:[{x:118,y:162,w:44,h:44,vis:false},{x:244,y:175,w:44,h:44,vis:false}],
    objects:[
     {id:'eye1',x:50,y:185,w:54,h:54,type:'eye',used:false,lines:['누군가 보고 있다.','눈이 움직인 것 같다.']},
-    {id:'carpet',x:130,y:420,w:100,h:44,type:'carpet',used:false,lines:['카펫에도 눈이 있다.','발 아래에서도 감시당하고 있다.']},
-    {id:'window',x:260,y:200,w:52,h:65,type:'window',used:false,lines:['창문이 없는데 시선이 느껴진다.','어디선가 계속 보고 있다.']},
+    {id:'carpet',x:130,y:420,w:100,h:44,type:'carpet',used:false,lines:['카펛에도 눈이 있다.','발 아래에서도 감시당하고 있다.']},
+    {id:'window',x:260,y:200,w:52,h:65,type:'window',used:false,lines:['싸창문이 없는데 시선이 느껴진다.','어디선가 계속 보고 있다.']},
     {id:'tv1',x:158,y:272,w:58,h:42,type:'tv',used:false,lines:['꺼진 화면에 내가 비친다.','전원을 켤 수가 없다.']},
     {id:'door1',x:154,y:92,w:52,h:72,type:'door',used:false,isExit:true,reqC:3,
-     lines:['문은 열리지 않는다.','아직 이 방을 다 보지 못했다.'],openLines:['문이 열린다.','. . .']}
+     lines:['문은 열리지 않는다.','아직 이 방을 다 보지 못했다.'],openLines:['문이 열린다.','. . .']}  
   ]},
   {bg:'#0D0505',fl:'#110707',wl:'#090404',req:3,extra:[],
    objects:[
-    {id:'eye2a',x:40,y:175,w:54,h:54,type:'eye',used:false,lines:['눈이 늘어난 것 같다.','익숙했던 것들이 낯설게 변한다.']},
+    {id:'eye2a',x:40,y:175,w:54,h:54,type:'eye',used:false,lines:['눈이 늘어난 것 같다.','익숙했던 것들이 낙슬하게 변한다.']},
     {id:'eye2b',x:270,y:185,w:54,h:54,type:'eye',used:false,lines:['그림 속 눈이 나를 따라본다.','착각일까.']},
     {id:'mirror',x:153,y:215,w:54,h:68,type:'mirror',used:false,lines:['거울에 내가 보인다.','그런데... 저게 정말 나인가.','조금 다른 것 같다.']},
-    {id:'tv2',x:82,y:328,w:58,h:42,type:'tv',used:false,lines:['TV에서 잡음이 들린다.','채널을 바꿀 수 없다.']},
+    {id:'tv2',x:82,y:328,w:58,h:42,type:'tv',used:false,lines:['TV에서 잡음이 들린다.','체널을 바꿼 수 없다.']},
     {id:'door2',x:154,y:92,w:52,h:72,type:'door',used:false,isExit:true,reqC:3,
-     lines:['아직 이 방을 다 조사하지 못했다.','무언가 더 살펴봐야 한다.'],openLines:['다음 방으로.','. . .']}
+     lines:['아직 이 방을 다 조사하지 못했다.','무언가 더 살펴줘야 한다.'],openLines:['다음 방으로.','. . .']}  
   ]},
   {bg:'#090404',fl:'#0C0505',wl:'#060202',req:1,extra:[],
    objects:[
     {id:'eye3a',x:34,y:155,w:54,h:54,type:'eye',used:false,lines:['벽 전체가 눈이다.','시선이 더 이상 멀리 있지 않다.']},
-    {id:'eye3b',x:286,y:172,w:54,h:54,type:'eye',used:false,lines:['눈이 깜빡였다.','그것이 나를 향해 열렸다.']},
+    {id:'eye3b',x:286,y:172,w:54,h:54,type:'eye',used:false,lines:['눈이 긜빡였다.','그것이 나를 향해 열렸다.']},
     {id:'eye3c',x:172,y:288,w:54,h:54,type:'eye',used:false,lines:['...','나를 보고 있다.']},
     {id:'door3',x:154,y:92,w:52,h:72,type:'door',used:false,isExit:true,reqC:0,
      lines:[],openLines:['저기다.','빨리 나가야 한다.']}
@@ -191,13 +199,85 @@ function phaseEvent(){
   else if(phase===2){SH.x=P.x+320;SH.y=P.y;SH.active=true;showNotif(NOTIF_MSGS[2]);}
 }
 
-function goNext(){frozen=true;fadeIn(function(){loadRoom(phase+1);setTimeout(fadeOut,100);});}
+// ─── Glitch transition ──────────────────────────────────────────
+function startGlitch(n){
+  GLT.active=true;GLT.t=0;GLT.loaded=false;GLT.next=n;
+  GLT.ca=0;GLT.shX=0;GLT.shY=0;GLT.bars=[];GLT.flash=0;
+  frozen=true;
+}
+function updateGlitch(dt){
+  if(!GLT.active)return;
+  GLT.t+=dt;var t=GLT.t;
+  // Chromatic aberration: ramp up -> peak at blackout -> settle after room load -> fade out
+  if(t<0.45)GLT.ca=t/0.45*12;
+  else if(t<0.65)GLT.ca=12+(t-0.45)/0.2*22;
+  else if(t<0.85)GLT.ca=34-(t-0.65)/0.2*28;
+  else if(t<1.3)GLT.ca=Math.max(0,6-(t-0.85)/0.45*6);
+  else GLT.ca=0;
+  // Flash: red before blackout, then black
+  GLT.flash=(t>0.62&&t<0.82)?t<0.72?Math.min(1,(t-0.62)/0.1):Math.max(0,(0.82-t)/0.1):0;
+  // Screen shake
+  var sh=t<0.65?Math.min(1,t/0.4)*9:(t>0.75&&t<1.2?(1-(t-0.75)/0.45)*5:0);
+  GLT.shX=(Math.random()-0.5)*sh*2;GLT.shY=(Math.random()-0.5)*sh*0.5;
+  // Horizontal glitch bars
+  if((t<0.65||(t>0.72&&t<1.15))&&Math.random()<0.5){
+    for(var i=0,bn=Math.floor(Math.random()*3)+1;i<bn;i++)
+      GLT.bars.push({y:Math.random()*GH,h:Math.random()*14+2,sh:(Math.random()-0.5)*50,life:0.05+Math.random()*0.07});
+  }
+  GLT.bars=GLT.bars.filter(function(b){b.life-=dt;return b.life>0;});
+  // Load new room at blackout peak
+  if(!GLT.loaded&&t>=GLT.loadAt){GLT.loaded=true;loadRoom(GLT.next);frozen=true;}
+  // End glitch
+  if(t>=GLT.dur){GLT.active=false;GLT.ca=0;GLT.bars=[];GLT.flash=0;GLT.shX=0;GLT.shY=0;frozen=false;}
+}
+function applyGlitchEffect(){
+  var ca=Math.round(GLT.ca),shX=Math.round(GLT.shX),shY=Math.round(GLT.shY);
+  // Apply horizontal glitch bars directly on offscreen
+  if(GLT.bars.length>0){
+    GLT.bars.forEach(function(b){
+      var sy=Math.round(b.y),bh=Math.round(b.h);
+      if(sy<0){bh+=sy;sy=0;}if(sy+bh>GH)bh=GH-sy;if(bh<=0)return;
+      try{var id=offG.getImageData(0,sy,GW,bh);offG.putImageData(id,Math.round(b.sh),sy);}catch(e){}
+    });
+  }
+  // Chromatic aberration: split RGB channels by ca pixels
+  if(ca>0){
+    var sd=offG.getImageData(0,0,GW,GH).data,od=_gBuf;
+    for(var y=0;y<GH;y++){
+      for(var x=0;x<GW;x++){
+        var i=(y*GW+x)*4;
+        var rx=x-ca<0?0:x-ca;   od[i  ]=sd[(y*GW+rx)*4];   // R shifted left
+        od[i+1]=sd[i+1];                                     // G unchanged
+        var bx=x+ca>=GW?GW-1:x+ca;od[i+2]=sd[(y*GW+bx)*4+2]; // B shifted right
+        od[i+3]=255;
+      }
+    }
+    g.putImageData(new ImageData(od,GW,GH),shX,shY);
+  } else {
+    g.drawImage(offCv,shX,shY);
+  }
+  // Color flash overlay
+  if(GLT.flash>0){
+    g.fillStyle=GLT.t<0.72?'rgba(160,12,12,'+(GLT.flash*0.88)+')':'rgba(0,0,0,'+(GLT.flash*0.95)+')';
+    g.fillRect(0,0,GW,GH);
+  }
+  // Scanline noise burst
+  if(GLT.t<0.65||GLT.t>0.72){
+    var na=Math.max(0,(0.65-Math.abs(GLT.t-0.685))/0.65)*0.22;
+    if(na>0.02){
+      g.fillStyle='rgba(200,80,80,'+na+')';
+      for(var n=0;n<6;n++){g.fillRect(0,Math.floor(Math.random()*GH),GW,1);}
+    }
+  }
+}
+function goNext(){startGlitch(phase+1);}
+
 function shadowCatch(){
   SH.active=false;frozen=true;
-  showDlg(['너도 결국 보여지고 싶었잖아.','...'],function(){fadeIn(function(){loadRoom(2);setTimeout(fadeOut,100);});});
+  showDlg(['너도 결국 보여지고 싶었잠아.','…'],function(){fadeIn(function(){loadRoom(2);setTimeout(fadeOut,100);});});
 }
 
-// ─── Ending ───────────────────────────────────────────────────
+// ─── Ending ───────────────────────────────────────────────
 var endStep=0,endT=0,mirA=0,eyeA=0,endDone=false;
 function startEnding(){
   scene='ending';endStep=0;endT=0;mirA=0;eyeA=0;endDone=false;
@@ -220,10 +300,11 @@ function updateEnding(dt){
   }
 }
 
-// ─── Loop ─────────────────────────────────────────────────────
+// ─── Loop ────────────────────────────────────────────────────
 var lastT=0;
 function tick(ts){
   var dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
+  updateGlitch(dt);
   if(!paused){
     if(scene==='room'||scene==='ending'){
       updatePlayer(dt);
@@ -251,7 +332,7 @@ function updateShadow(dt){
   SH.x+=dx/dd*SH.spd*dt;SH.y+=dy/dd*SH.spd*dt;
 }
 
-// ─── Input ────────────────────────────────────────────────────
+// ─── Input ──────────────────────────────────────────────────
 function toGame(e){
   var r=cv.getBoundingClientRect(),sx=GW/r.width,sy=GH/r.height;
   var t=e.changedTouches?e.changedTouches[0]:e;
@@ -301,7 +382,8 @@ function onTap(gx,gy){
     if(inR(gx,gy,TTBTN)){paused=false;fadeIn(function(){scene='title';phase=0;setTimeout(fadeOut,100);});return;}
     return;
   }
-  if((scene==='room'||scene==='ending')&&inR(gx,gy,PBTN)){paused=true;return;}
+  // Block pause button during glitch transition
+  if((scene==='room'||scene==='ending')&&!GLT.active&&inR(gx,gy,PBTN)){paused=true;return;}
   if(dlgActive){advanceDlg();return;}
   if(scene==='room'&&!frozen){
     var o=tappedObj(gx,gy);
@@ -310,7 +392,7 @@ function onTap(gx,gy){
   }
 }
 
-// ─── Draw helpers ─────────────────────────────────────────────
+// ─── Draw helpers ───────────────────────────────────────────
 function rr(x,y,w,h,r){
   g.beginPath();g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.arcTo(x+w,y,x+w,y+r,r);
   g.lineTo(x+w,y+h-r);g.arcTo(x+w,y+h,x+w-r,y+h,r);
@@ -419,8 +501,8 @@ function drawObj(o){
   }
 }
 
-// ─── HUD ──────────────────────────────────────────────────────
-var PNAMES=['관찰','왜곡','침식','엔딩'];
+// ─── HUD ─────────────────────────────────────────────────────
+var PNAMES=['관찰','왼곡','침식','엔딩'];
 function drawHUD(){
   g.fillStyle='rgba(4,1,1,0.90)';g.fillRect(0,0,GW,HH);
   g.strokeStyle='rgba(120,30,30,0.35)';g.lineWidth=1;
@@ -462,7 +544,7 @@ function drawHUD(){
   g.fillStyle='#c07878';g.fillRect(bx-7,by-7,5,14);g.fillRect(bx+2,by-7,5,14);
 }
 
-// ─── Phase bar ────────────────────────────────────────────────
+// ─── Phase bar ────────────────────────────────────────────
 function drawPhaseBar(){
   var by=GH-PBH;
   g.fillStyle='rgba(4,1,1,0.92)';g.fillRect(0,by,GW,PBH);
@@ -484,7 +566,7 @@ function drawPhaseBar(){
   }
 }
 
-// ─── Notification ─────────────────────────────────────────────
+// ─── Notification ───────────────────────────────────────────
 function drawNotif(){
   if(!phaseNotif)return;
   var a=1,fd=0.5;
@@ -503,7 +585,7 @@ function drawNotif(){
   g.restore();
 }
 
-// ─── Pause overlay ────────────────────────────────────────────
+// ─── Pause overlay ──────────────────────────────────────────
 function drawPause(){
   g.fillStyle='rgba(0,0,0,0.84)';g.fillRect(0,0,GW,GH);
   var pw=244,ph=360,px=(GW-pw)/2,py=(GH-ph)/2-10;
@@ -601,7 +683,7 @@ function drawTitle(){
   vignette();
 }
 
-// ─── Ending ───────────────────────────────────────────────────
+// ─── Ending ───────────────────────────────────────────────
 var END_EYES=[[45,135],[300,150],[30,250],[322,270],[25,390],[318,410],[170,100],[185,490],[80,460],[275,465],[140,300],[230,310]];
 function drawEnding(){
   g.fillStyle='#060202';g.fillRect(0,0,GW,GH);
@@ -626,16 +708,29 @@ function drawEnding(){
   if(paused)drawPause();
 }
 
-// ─── Main draw ────────────────────────────────────────────────
+// ─── Main draw ──────────────────────────────────────────────
 function draw(){
-  g.clearRect(0,0,GW,GH);
-  if(scene==='title'){drawTitle();return;}
-  if(scene==='ending'){drawEnding();return;}
-  drawRoom();
-  if(SH.active)drawShadow(SH.x,SH.y);
-  drawPlayer(P.x,P.y,P.flip,false);
-  vignette();drawNotif();drawHUD();drawPhaseBar();
-  if(paused)drawPause();
+  var realG=null;
+  if(GLT.active){
+    realG=g;g=offG;
+    offG.clearRect(0,0,GW,GH);
+  } else {
+    g.clearRect(0,0,GW,GH);
+  }
+  if(scene==='title'){drawTitle();}
+  else if(scene==='ending'){drawEnding();}
+  else{
+    drawRoom();
+    if(SH.active)drawShadow(SH.x,SH.y);
+    drawPlayer(P.x,P.y,P.flip,false);
+    vignette();drawNotif();drawHUD();drawPhaseBar();
+    if(paused)drawPause();
+  }
+  if(GLT.active){
+    g=realG;
+    realG.clearRect(0,0,GW,GH);
+    applyGlitchEffect();
+  }
 }
 
 requestAnimationFrame(tick);
