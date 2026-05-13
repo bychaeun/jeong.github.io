@@ -58,8 +58,8 @@ const dlgHintEl=document.getElementById('dlg-hint');
 const fadeEl=document.getElementById('fade');
 
 function resize(){
-  const s=Math.min(window.innerWidth/GW,window.innerHeight/GH);
-  const w=Math.floor(GW*s),h=Math.floor(GH*s);
+  var s=Math.min(window.innerWidth/GW,window.innerHeight/GH);
+  var w=Math.floor(GW*s),h=Math.floor(GH*s);
   cv.width=GW;cv.height=GH;
   cv.style.width=w+'px';cv.style.height=h+'px';
   wrap.style.width=w+'px';wrap.style.height=h+'px';
@@ -69,21 +69,21 @@ window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,200);});
 
 // ─── State ───────────────────────────────────────────────────
-let scene='title',phase=0,invCount=0,dlgActive=false,frozen=false;
-const P={x:180,y:490,tx:180,ty:490,moving:false,flip:false,wf:0,wt:0};
-const PSPD=95,PREACH=62;
-const SH={x:-300,y:450,active:false,spd:60};
+var scene='title',phase=0,invCount=0,dlgActive=false,frozen=false;
+var P={x:180,y:490,tx:180,ty:490,moving:false,flip:false,wf:0,wt:0};
+var PSPD=95,PREACH=62;
+var SH={x:-300,y:450,active:false,spd:60};
 
 // ─── Dialogue ────────────────────────────────────────────────
-let DQ={lines:[],i:0,n:0,done:false,tim:null,cb:null};
+var DQ={lines:[],i:0,n:0,done:false,tim:null,cb:null};
 function showDlg(lines,cb){
   if(!lines||!lines.length){if(cb)cb();return;}
-  DQ={lines,i:0,n:0,done:false,tim:null,cb:cb||null};
+  DQ={lines:lines,i:0,n:0,done:false,tim:null,cb:cb||null};
   dlgActive=true;dlgEl.style.display='block';
   dlgHintEl.style.opacity='0';_typeNext();
 }
 function _typeNext(){
-  const ln=DQ.lines[DQ.i];
+  var ln=DQ.lines[DQ.i];
   dlgTextEl.textContent='';DQ.n=0;DQ.done=false;
   clearInterval(DQ.tim);
   DQ.tim=setInterval(function(){
@@ -188,6 +188,22 @@ function nearestObj(){
     if(dd<bd){bd=dd;best=o;}
   }
   return best;
+}
+
+// 탭 위치가 오브젝트 위에 있고 플레이어가 근처에 있을 때만 반환
+function tappedObj(gx,gy){
+  if(!room)return null;
+  var m=30; // 모바일 터치 여유 마진
+  for(var i=0;i<room.objects.length;i++){
+    var o=room.objects[i];
+    if(o.used&&!o.isExit)continue;
+    if(d2(P.x,P.y,o.x+o.w/2,o.y+o.h/2)<PREACH){
+      if(gx>=o.x-m&&gx<=o.x+o.w+m&&gy>=o.y-m&&gy<=o.y+o.h+m){
+        return o;
+      }
+    }
+  }
+  return null;
 }
 
 function investigate(o){
@@ -304,7 +320,8 @@ function onTap(gx,gy){
   }
   if(dlgActive){advanceDlg();return;}
   if(scene==='room'&&!frozen){
-    var o=nearestObj();
+    // 탭 위치가 오브젝트 위에 있을 때만 조사, 아니면 이동
+    var o=tappedObj(gx,gy);
     if(o){investigate(o);return;}
     P.tx=gx;P.ty=gy;P.moving=true;P.flip=gx<P.x;
   }
@@ -432,6 +449,7 @@ function drawObj(o){
     g.fillStyle='#3a2020';g.beginPath();g.arc(x+w-10,y+h/2,3,0,Math.PI*2);g.fill();
     if(open){g.fillStyle='rgba(120,60,60,0.15)';g.fillRect(x+1,y,3,h);}
   }
+  // 조사 가능 표시: 플레이어가 근처에 있을 때
   if(!o.used||o.isExit){
     if(d2(P.x,P.y,o.x+o.w/2,o.y+o.h/2)<PREACH){
       g.fillStyle='rgba(185,90,90,0.9)';
@@ -490,7 +508,7 @@ function drawTitle(){
   g.fillStyle='#c09090';g.font='18px Courier New';
   g.fillText('시작하기',GW/2,385);
   g.fillStyle='rgba(80,30,30,0.5)';g.font='11px Courier New';
-  g.fillText('터치하여 이동 · 근체에서 탭으로 조사',GW/2,492);
+  g.fillText('오브젝트 탭 → 조사 · 다른 곳 탭 → 이동',GW/2,492);
   vignette();
 }
 
@@ -533,7 +551,6 @@ function draw(){
   if(SH.active)drawShadow(SH.x,SH.y);
   drawPlayer(P.x,P.y,P.flip,false);
   vignette();
-  // HUD
   var labels=['관찰','왜곡','침식','엔딩'];
   g.font='10px Courier New';
   g.fillStyle='rgba(120,30,30,0.6)';g.textAlign='right';
