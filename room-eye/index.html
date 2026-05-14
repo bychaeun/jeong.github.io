@@ -54,7 +54,6 @@ resize();
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',function(){setTimeout(resize,200);});
 
-// ─── State ─────────────────────────────────────────────
 var scene='title',phase=0,invCount=0,dlgActive=false,frozen=false;
 var paused=false,showSettings=false;
 var bgmVol=0.7,sfxVol=0.8,dragging=null;
@@ -63,15 +62,14 @@ var P={x:180,y:490,tx:180,ty:490,moving:false,flip:false,wf:0,wt:0};
 var PSPD=95,PREACH=62;
 var SH={x:-300,y:450,active:false,spd:60};
 
-// ─── Glitch transition state ──────────────────────────────
-var GLT={active:false,t:0,dur:1.9,loadAt:0.72,loaded:false,next:0,
-         ca:0,shX:0,shY:0,bars:[],flash:0};
+var GLT={active:false,t:0,dur:1.9,loadAt:0.72,loaded:false,next:0,ca:0,shX:0,shY:0,bars:[],flash:0};
 var offCv=document.createElement('canvas');
 offCv.width=GW;offCv.height=GH;
 var offG=offCv.getContext('2d');
 var _gBuf=new Uint8ClampedArray(GW*GH*4);
 
-// UI zones
+var SHAKE={active:false,t:0,dur:1.4,x:0,y:0,str:9};
+
 var PBTN={x:GW-42,y:6,w:36,h:32};
 var RBTN={x:GW/2-80,y:222,w:160,h:42};
 var STBTN={x:GW/2-80,y:275,w:160,h:42};
@@ -82,7 +80,6 @@ var SICON={x:GW-42,y:10,w:30,h:28};
 var TBGMT={x:70,y:172,w:GW-140,h:6};
 var TSFXT={x:70,y:212,w:GW-140,h:6};
 
-// ─── Dialogue ─────────────────────────────────────────────
 var DQ={lines:[],i:0,n:0,done:false,tim:null,cb:null};
 function showDlg(lines,cb){
   if(!lines||!lines.length){if(cb)cb();return;}
@@ -116,15 +113,12 @@ function advanceDlg(){
   }
 }
 
-// ─── Fade ─────────────────────────────────────────────────
 function fadeIn(cb){fadeEl.style.transition='opacity 0.75s';fadeEl.style.opacity='1';setTimeout(function(){if(cb)cb();},750);}
 function fadeOut(){fadeEl.style.transition='opacity 0.75s';fadeEl.style.opacity='0';}
 
-// ─── Notification ───────────────────────────────────────────
 var NOTIF_MSGS=['무언가... 보고 있다','방이 흔들린다','뒤에서 발소리가 들린다'];
 function showNotif(msg){phaseNotif={msg:msg,t:0,max:2.8};}
 
-// ─── Room data ────────────────────────────────────────────
 var ROOMS=[
   {bg:'#100706',fl:'#140907',wl:'#0C0504',req:3,
    extra:[{x:118,y:162,w:44,h:44,vis:false},{x:244,y:175,w:44,h:44,vis:false}],
@@ -190,16 +184,24 @@ function investigate(o){
 }
 
 function phaseEvent(){
-  if(phase===0){if(room.extra)room.extra.forEach(function(e){e.vis=true;});showNotif(NOTIF_MSGS[0]);}
-  else if(phase===1){
-    if(!room.furniture)room.furniture=[{x:260,y:352,w:44,h:84,ox:0,oy:0},{x:78,y:400,w:38,h:54,ox:0,oy:0},{x:44,y:285,w:30,h:62,ox:0,oy:0}];
+  if(phase===0){
+    if(room.extra)room.extra.forEach(function(e){e.vis=true;});
+    showNotif(NOTIF_MSGS[0]);
+  } else if(phase===1){
+    if(!room.furniture)room.furniture=[
+      {x:260,y:352,w:44,h:84,ox:0,oy:0},
+      {x:78,y:400,w:38,h:54,ox:0,oy:0},
+      {x:44,y:285,w:30,h:62,ox:0,oy:0}
+    ];
     room.furniture.forEach(function(f){f.ox+=(Math.random()-0.5)*28;f.oy+=(Math.random()-0.5)*14;});
     showNotif(NOTIF_MSGS[1]);
+    startShake();
+  } else if(phase===2){
+    SH.x=P.x+320;SH.y=P.y;SH.active=true;
+    showNotif(NOTIF_MSGS[2]);
   }
-  else if(phase===2){SH.x=P.x+320;SH.y=P.y;SH.active=true;showNotif(NOTIF_MSGS[2]);}
 }
 
-// ─── Glitch transition ──────────────────────────────────────────
 function startGlitch(n){
   GLT.active=true;GLT.t=0;GLT.loaded=false;GLT.next=n;
   GLT.ca=0;GLT.shX=0;GLT.shY=0;GLT.bars=[];GLT.flash=0;
@@ -208,31 +210,24 @@ function startGlitch(n){
 function updateGlitch(dt){
   if(!GLT.active)return;
   GLT.t+=dt;var t=GLT.t;
-  // Chromatic aberration: ramp up -> peak at blackout -> settle after room load -> fade out
   if(t<0.45)GLT.ca=t/0.45*12;
   else if(t<0.65)GLT.ca=12+(t-0.45)/0.2*22;
   else if(t<0.85)GLT.ca=34-(t-0.65)/0.2*28;
   else if(t<1.3)GLT.ca=Math.max(0,6-(t-0.85)/0.45*6);
   else GLT.ca=0;
-  // Flash: red before blackout, then black
   GLT.flash=(t>0.62&&t<0.82)?t<0.72?Math.min(1,(t-0.62)/0.1):Math.max(0,(0.82-t)/0.1):0;
-  // Screen shake
   var sh=t<0.65?Math.min(1,t/0.4)*9:(t>0.75&&t<1.2?(1-(t-0.75)/0.45)*5:0);
   GLT.shX=(Math.random()-0.5)*sh*2;GLT.shY=(Math.random()-0.5)*sh*0.5;
-  // Horizontal glitch bars
   if((t<0.65||(t>0.72&&t<1.15))&&Math.random()<0.5){
     for(var i=0,bn=Math.floor(Math.random()*3)+1;i<bn;i++)
       GLT.bars.push({y:Math.random()*GH,h:Math.random()*14+2,sh:(Math.random()-0.5)*50,life:0.05+Math.random()*0.07});
   }
   GLT.bars=GLT.bars.filter(function(b){b.life-=dt;return b.life>0;});
-  // Load new room at blackout peak
   if(!GLT.loaded&&t>=GLT.loadAt){GLT.loaded=true;loadRoom(GLT.next);frozen=true;}
-  // End glitch
   if(t>=GLT.dur){GLT.active=false;GLT.ca=0;GLT.bars=[];GLT.flash=0;GLT.shX=0;GLT.shY=0;frozen=false;}
 }
 function applyGlitchEffect(){
   var ca=Math.round(GLT.ca),shX=Math.round(GLT.shX),shY=Math.round(GLT.shY);
-  // Apply horizontal glitch bars directly on offscreen
   if(GLT.bars.length>0){
     GLT.bars.forEach(function(b){
       var sy=Math.round(b.y),bh=Math.round(b.h);
@@ -240,15 +235,14 @@ function applyGlitchEffect(){
       try{var id=offG.getImageData(0,sy,GW,bh);offG.putImageData(id,Math.round(b.sh),sy);}catch(e){}
     });
   }
-  // Chromatic aberration: split RGB channels by ca pixels
   if(ca>0){
     var sd=offG.getImageData(0,0,GW,GH).data,od=_gBuf;
     for(var y=0;y<GH;y++){
       for(var x=0;x<GW;x++){
         var i=(y*GW+x)*4;
-        var rx=x-ca<0?0:x-ca;   od[i  ]=sd[(y*GW+rx)*4];   // R shifted left
-        od[i+1]=sd[i+1];                                     // G unchanged
-        var bx=x+ca>=GW?GW-1:x+ca;od[i+2]=sd[(y*GW+bx)*4+2]; // B shifted right
+        var rx=x-ca<0?0:x-ca;od[i]=sd[(y*GW+rx)*4];
+        od[i+1]=sd[i+1];
+        var bx=x+ca>=GW?GW-1:x+ca;od[i+2]=sd[(y*GW+bx)*4+2];
         od[i+3]=255;
       }
     }
@@ -256,28 +250,34 @@ function applyGlitchEffect(){
   } else {
     g.drawImage(offCv,shX,shY);
   }
-  // Color flash overlay
   if(GLT.flash>0){
     g.fillStyle=GLT.t<0.72?'rgba(160,12,12,'+(GLT.flash*0.88)+')':'rgba(0,0,0,'+(GLT.flash*0.95)+')';
     g.fillRect(0,0,GW,GH);
   }
-  // Scanline noise burst
   if(GLT.t<0.65||GLT.t>0.72){
     var na=Math.max(0,(0.65-Math.abs(GLT.t-0.685))/0.65)*0.22;
-    if(na>0.02){
-      g.fillStyle='rgba(200,80,80,'+na+')';
-      for(var n=0;n<6;n++){g.fillRect(0,Math.floor(Math.random()*GH),GW,1);}
-    }
+    if(na>0.02){g.fillStyle='rgba(200,80,80,'+na+')';for(var n=0;n<6;n++){g.fillRect(0,Math.floor(Math.random()*GH),GW,1);}}
   }
 }
 function goNext(){startGlitch(phase+1);}
+
+function startShake(){
+  SHAKE.active=true;SHAKE.t=0;SHAKE.x=0;SHAKE.y=0;
+}
+function updateShake(dt){
+  if(!SHAKE.active)return;
+  SHAKE.t+=dt;
+  var intensity=Math.max(0,(1-SHAKE.t/SHAKE.dur))*SHAKE.str;
+  SHAKE.x=(Math.random()-0.5)*intensity*2;
+  SHAKE.y=(Math.random()-0.5)*intensity*0.8;
+  if(SHAKE.t>=SHAKE.dur){SHAKE.active=false;SHAKE.x=0;SHAKE.y=0;}
+}
 
 function shadowCatch(){
   SH.active=false;frozen=true;
   showDlg(['너도 결국 보여지고 싶었잠아.','…'],function(){fadeIn(function(){loadRoom(2);setTimeout(fadeOut,100);});});
 }
 
-// ─── Ending ───────────────────────────────────────────────
 var endStep=0,endT=0,mirA=0,eyeA=0,endDone=false;
 function startEnding(){
   scene='ending';endStep=0;endT=0;mirA=0;eyeA=0;endDone=false;
@@ -300,11 +300,53 @@ function updateEnding(dt){
   }
 }
 
-// ─── Loop ────────────────────────────────────────────────────
+var BLOOD=[
+  {x:38,y:112,r:16,drips:[[-3,28],[4,22]],dots:[[-13,-9],[11,-6],[13,8],[-10,14],[17,2]]},
+  {x:294,y:86,r:13,drips:[[3,24],[-5,17]],dots:[[11,-7],[-13,3],[9,13],[-7,-12]]},
+  {x:165,y:574,r:22,drips:[[-6,34],[4,28],[7,20]],dots:[[-19,-11],[17,-8],[21,9],[-17,13],[0,-20]]},
+  {x:312,y:355,r:15,drips:[[4,26],[-3,19]],dots:[[-13,-7],[11,-9],[13,11],[-8,16]]},
+  {x:24,y:422,r:19,drips:[[-3,30],[6,24]],dots:[[15,-9],[-15,-6],[16,13],[-13,15],[2,-18]]},
+  {x:190,y:168,r:11,drips:[[2,20],[-4,15]],dots:[[-9,-6],[8,-8],[9,9],[-8,11]]},
+  {x:86,y:528,r:16,drips:[[-4,26],[5,21]],dots:[[14,-8],[-12,-6],[13,12],[0,-15]]},
+  {x:255,y:486,r:14,drips:[[3,24],[-2,17]],dots:[[-12,-7],[10,-9],[11,11],[-10,13]]},
+  {x:142,y:445,r:12,drips:[[-2,20],[5,15]],dots:[[10,-6],[-9,-8],[9,9],[0,16]]},
+  {x:328,y:198,r:10,drips:[[2,17],[-3,13]],dots:[[-8,-5],[7,-7],[8,8]]},
+  {x:58,y:288,r:9,drips:[[2,16],[-2,12]],dots:[[-7,-4],[6,-6],[7,7]]}
+];
+function drawBloods(alpha){
+  if(alpha<=0)return;
+  g.save();g.globalAlpha=Math.min(1,alpha)*0.92;
+  BLOOD.forEach(function(s){
+    g.fillStyle='rgba(28,0,0,0.4)';
+    g.beginPath();g.ellipse(s.x+2,s.y+3,s.r+3,s.r*0.7+2,0,0,Math.PI*2);g.fill();
+    g.fillStyle='#5c0a0a';
+    g.beginPath();g.ellipse(s.x,s.y,s.r,s.r*0.72,0,0,Math.PI*2);g.fill();
+    g.fillStyle='#7c1515';
+    g.beginPath();g.arc(s.x-s.r*0.2,s.y-s.r*0.15,s.r*0.5,0,Math.PI*2);g.fill();
+    g.fillStyle='rgba(120,25,25,0.5)';
+    g.beginPath();g.arc(s.x-s.r*0.3,s.y-s.r*0.22,s.r*0.22,0,Math.PI*2);g.fill();
+    s.drips.forEach(function(d){
+      var tx=s.x+d[0],ty0=s.y+s.r*0.35,len=d[1];
+      g.fillStyle='#480606';
+      g.beginPath();
+      g.moveTo(tx-2.5,ty0);g.lineTo(tx+2.5,ty0);
+      g.lineTo(tx+1.5,ty0+len);g.lineTo(tx-1.5,ty0+len);
+      g.fill();
+      g.beginPath();g.arc(tx,ty0+len,3.5,0,Math.PI*2);g.fill();
+    });
+    g.fillStyle='rgba(72,6,6,0.85)';
+    s.dots.forEach(function(d){
+      g.beginPath();g.arc(s.x+d[0],s.y+d[1],Math.min(3.5,1.5+Math.abs(d[0]+d[1])*0.04),0,Math.PI*2);g.fill();
+    });
+  });
+  g.restore();
+}
+
 var lastT=0;
 function tick(ts){
   var dt=Math.min((ts-lastT)/1000,0.05);lastT=ts;
   updateGlitch(dt);
+  updateShake(dt);
   if(!paused){
     if(scene==='room'||scene==='ending'){
       updatePlayer(dt);
@@ -332,7 +374,6 @@ function updateShadow(dt){
   SH.x+=dx/dd*SH.spd*dt;SH.y+=dy/dd*SH.spd*dt;
 }
 
-// ─── Input ──────────────────────────────────────────────────
 function toGame(e){
   var r=cv.getBoundingClientRect(),sx=GW/r.width,sy=GH/r.height;
   var t=e.changedTouches?e.changedTouches[0]:e;
@@ -354,7 +395,6 @@ cv.addEventListener('touchstart',function(e){
   }
   onTap(gx,gy);
 },{passive:false});
-
 cv.addEventListener('touchmove',function(e){
   e.preventDefault();
   if(!dragging)return;
@@ -363,7 +403,6 @@ cv.addEventListener('touchmove',function(e){
   var v=Math.max(0,Math.min(1,(gx-trk.x)/trk.w));
   if(dragging.indexOf('bgm')>=0)bgmVol=v; else sfxVol=v;
 },{passive:false});
-
 cv.addEventListener('touchend',function(e){e.preventDefault();dragging=null;},{passive:false});
 cv.addEventListener('mousedown',function(e){var p=toGame(e);onTap(p.x,p.y);});
 dlgEl.addEventListener('touchstart',function(e){e.preventDefault();advanceDlg();},{passive:false});
@@ -382,7 +421,6 @@ function onTap(gx,gy){
     if(inR(gx,gy,TTBTN)){paused=false;fadeIn(function(){scene='title';phase=0;setTimeout(fadeOut,100);});return;}
     return;
   }
-  // Block pause button during glitch transition
   if((scene==='room'||scene==='ending')&&!GLT.active&&inR(gx,gy,PBTN)){paused=true;return;}
   if(dlgActive){advanceDlg();return;}
   if(scene==='room'&&!frozen){
@@ -392,14 +430,12 @@ function onTap(gx,gy){
   }
 }
 
-// ─── Draw helpers ───────────────────────────────────────────
 function rr(x,y,w,h,r){
   g.beginPath();g.moveTo(x+r,y);g.lineTo(x+w-r,y);g.arcTo(x+w,y,x+w,y+r,r);
   g.lineTo(x+w,y+h-r);g.arcTo(x+w,y+h,x+w-r,y+h,r);
   g.lineTo(x+r,y+h);g.arcTo(x,y+h,x,y+h-r,r);
   g.lineTo(x,y+r);g.arcTo(x,y,x+r,y,r);g.closePath();
 }
-
 function eyeShape(x,y,w,h,closed){
   var mx=x+w/2,my=y+h/2,rx=w/2,ry=h/2.2;
   g.save();
@@ -412,7 +448,6 @@ function eyeShape(x,y,w,h,closed){
   } else {g.fillStyle='#180808';g.beginPath();g.ellipse(mx,my,rx+1,ry+1,0,0,Math.PI*2);g.fill();}
   g.restore();
 }
-
 function drawPlayer(x,y,flip,monster){
   g.save();g.translate(x,y);if(flip)g.scale(-1,1);
   var bob=P.moving?Math.sin(P.wf*Math.PI*0.5)*2:0;g.translate(0,bob);
@@ -430,7 +465,6 @@ function drawPlayer(x,y,flip,monster){
   }
   g.restore();
 }
-
 function drawShadow(x,y){
   g.save();g.translate(x,y);g.globalAlpha=0.92;g.fillStyle='#060308';
   g.fillRect(-11,-32,22,54);g.fillRect(-26,-16,15,6);g.fillRect(11,-16,15,6);
@@ -438,13 +472,11 @@ function drawShadow(x,y){
   g.fillStyle='#fff';g.fillRect(-5,-46,4,4);g.fillRect(1,-46,4,4);
   g.globalAlpha=1;g.restore();
 }
-
 function vignette(){
   var gr=g.createRadialGradient(GW/2,GH/2,GH*0.28,GW/2,GH/2,GH*0.74);
   gr.addColorStop(0,'rgba(0,0,0,0)');gr.addColorStop(1,'rgba(0,0,0,0.7)');
   g.fillStyle=gr;g.fillRect(0,0,GW,GH);
 }
-
 function drawSlider(trk,val){
   g.fillStyle='rgba(30,8,8,0.8)';rr(trk.x,trk.y-4,trk.w,trk.h+8,4);g.fill();
   g.strokeStyle='rgba(100,25,25,0.5)';g.lineWidth=1;rr(trk.x,trk.y-4,trk.w,trk.h+8,4);g.stroke();
@@ -455,7 +487,6 @@ function drawSlider(trk,val){
   g.fillStyle='rgba(180,100,100,0.8)';g.font='9px Courier New';g.textAlign='right';
   g.fillText(Math.round(val*100)+'%',trk.x+trk.w+28,trk.y+6);
 }
-
 function drawObj(o){
   var x=o.x,y=o.y,w=o.w,h=o.h;
   if(o.type==='eye'){eyeShape(x,y,w,h,o.used);}
@@ -501,14 +532,11 @@ function drawObj(o){
   }
 }
 
-// ─── HUD ─────────────────────────────────────────────────────
-var PNAMES=['관찰','왼곡','침식','엔딩'];
+var PNAMES=['살펴보다','흔들린다','아르진다','열린다'];
 function drawHUD(){
   g.fillStyle='rgba(4,1,1,0.90)';g.fillRect(0,0,GW,HH);
   g.strokeStyle='rgba(120,30,30,0.35)';g.lineWidth=1;
   g.beginPath();g.moveTo(0,HH);g.lineTo(GW,HH);g.stroke();
-
-  // Phase dots + labels
   for(var i=0;i<4;i++){
     var cx=18+i*40,cy=16;
     g.fillStyle=i===phase?'#d04040':i<phase?'rgba(120,30,30,0.6)':'rgba(50,15,15,0.5)';
@@ -523,50 +551,58 @@ function drawHUD(){
     g.font=(i===phase)?'bold 8px Courier New':'8px Courier New';
     g.textAlign='center';g.fillText(PNAMES[i],cx,HH-6);
   }
-
-  // Investigation pips
   if(room&&room.req>0){
     var tot=room.req,cnt=Math.min(invCount,tot),hx=GW/2+26;
     g.fillStyle='rgba(140,70,70,0.7)';g.font='9px Courier New';g.textAlign='center';
     g.fillText('조사',hx,13);
     for(var j=0;j<tot;j++){
-      var px=hx-((tot-1)*9)+j*18;
+      var ppx=hx-((tot-1)*9)+j*18;
       g.fillStyle=j<cnt?'#d04040':'rgba(60,20,20,0.5)';
-      g.beginPath();g.arc(px,29,5,0,Math.PI*2);g.fill();
-      if(j<cnt){g.fillStyle='rgba(255,180,180,0.3)';g.beginPath();g.arc(px,29,3,0,Math.PI*2);g.fill();}
+      g.beginPath();g.arc(ppx,29,5,0,Math.PI*2);g.fill();
+      if(j<cnt){g.fillStyle='rgba(255,180,180,0.3)';g.beginPath();g.arc(ppx,29,3,0,Math.PI*2);g.fill();}
     }
   }
-
-  // Pause button
   g.fillStyle='rgba(50,12,12,0.75)';rr(PBTN.x,PBTN.y,PBTN.w,PBTN.h,5);g.fill();
   g.strokeStyle='rgba(140,40,40,0.45)';g.lineWidth=1;rr(PBTN.x,PBTN.y,PBTN.w,PBTN.h,5);g.stroke();
   var bx=PBTN.x+PBTN.w/2,by=PBTN.y+PBTN.h/2;
   g.fillStyle='#c07878';g.fillRect(bx-7,by-7,5,14);g.fillRect(bx+2,by-7,5,14);
 }
 
-// ─── Phase bar ────────────────────────────────────────────
 function drawPhaseBar(){
   var by=GH-PBH;
-  g.fillStyle='rgba(4,1,1,0.92)';g.fillRect(0,by,GW,PBH);
-  g.strokeStyle='rgba(100,25,25,0.35)';g.lineWidth=1;
+  g.fillStyle='rgba(3,0,0,0.96)';g.fillRect(0,by,GW,PBH);
+  g.strokeStyle='rgba(80,12,12,0.5)';g.lineWidth=1;
   g.beginPath();g.moveTo(0,by);g.lineTo(GW,by);g.stroke();
-  var sw=GW/4,labels=['Phase 1','Phase 2','Phase 3','Phase 4'];
-  for(var i=0;i<4;i++){
-    var sx=i*sw;
-    if(i<phase){g.fillStyle='rgba(100,20,20,0.45)';g.fillRect(sx+1,by+1,sw-2,PBH-2);}
-    else if(i===phase){
-      g.fillStyle='rgba(160,35,35,0.28)';g.fillRect(sx+1,by+1,sw-2,PBH-2);
-      g.strokeStyle='rgba(210,55,55,0.65)';g.lineWidth=2;
-      g.beginPath();g.moveTo(sx+3,by+1.5);g.lineTo(sx+sw-3,by+1.5);g.stroke();
+  var labels=['관심','왼곡','침식','엔딩'];
+  var sep=' // ';
+  g.font='bold 11px Courier New';
+  var parts=[];
+  labels.forEach(function(l,i){
+    if(i>0)parts.push({text:sep,t:'sep'});
+    var txt=i===phase?('['+l+']'):l;
+    parts.push({text:txt,t:i===phase?'cur':i<phase?'past':'next'});
+  });
+  var totalW=0;
+  parts.forEach(function(p){totalW+=g.measureText(p.text).width;});
+  var cx=Math.round((GW-totalW)/2),cy=by+23;
+  g.textAlign='left';
+  parts.forEach(function(p){
+    var w=g.measureText(p.text).width;
+    if(p.t==='sep'){
+      g.fillStyle='rgba(55,12,12,0.7)';g.fillText(p.text,cx,cy);
+    } else if(p.t==='cur'){
+      g.fillStyle='rgba(200,20,20,0.45)';g.fillText(p.text,cx-1,cy);
+      g.fillStyle='rgba(20,160,160,0.25)';g.fillText(p.text,cx+1,cy);
+      g.fillStyle='#f0a0a0';g.fillText(p.text,cx,cy);
+    } else if(p.t==='past'){
+      g.fillStyle='rgba(110,35,35,0.6)';g.fillText(p.text,cx,cy);
+    } else {
+      g.fillStyle='rgba(45,12,12,0.4)';g.fillText(p.text,cx,cy);
     }
-    if(i>0){g.strokeStyle='rgba(70,18,18,0.55)';g.lineWidth=1;g.beginPath();g.moveTo(sx,by);g.lineTo(sx,by+PBH);g.stroke();}
-    g.font=i===phase?'bold 10px Courier New':'10px Courier New';
-    g.fillStyle=i===phase?'#e08080':i<phase?'rgba(150,55,55,0.7)':'rgba(70,35,35,0.5)';
-    g.textAlign='center';g.fillText(labels[i],sx+sw/2,by+22);
-  }
+    cx+=w;
+  });
 }
 
-// ─── Notification ───────────────────────────────────────────
 function drawNotif(){
   if(!phaseNotif)return;
   var a=1,fd=0.5;
@@ -574,18 +610,15 @@ function drawNotif(){
   if(phaseNotif.t>phaseNotif.max-fd)a=(phaseNotif.max-phaseNotif.t)/fd;
   a=Math.max(0,Math.min(1,a));
   g.save();g.globalAlpha=a;
-  var pw=230,ph=52,px=(GW-pw)/2,py=56;
+  var pw=220,ph=40,px=(GW-pw)/2,py=56;
   g.fillStyle='rgba(8,1,1,0.96)';rr(px,py,pw,ph,6);g.fill();
   g.strokeStyle='rgba(200,45,45,0.75)';g.lineWidth=1.5;rr(px,py,pw,ph,6);g.stroke();
-  eyeShape(px+16,py+ph/2-10,20,18);
+  eyeShape(px+16,py+ph/2-9,20,18);
   g.fillStyle='rgba(210,80,80,0.95)';g.font='bold 11px Courier New';g.textAlign='center';
-  g.fillText(phaseNotif.msg,px+pw/2+8,py+22);
-  g.fillStyle='rgba(150,55,55,0.7)';g.font='9px Courier New';
-  g.fillText('— 이벤트 발생 —',px+pw/2+8,py+38);
+  g.fillText(phaseNotif.msg,px+pw/2+8,py+ph/2+4);
   g.restore();
 }
 
-// ─── Pause overlay ──────────────────────────────────────────
 function drawPause(){
   g.fillStyle='rgba(0,0,0,0.84)';g.fillRect(0,0,GW,GH);
   var pw=244,ph=360,px=(GW-pw)/2,py=(GH-ph)/2-10;
@@ -595,7 +628,6 @@ function drawPause(){
   g.fillText('PAUSED',GW/2,py+46);
   g.strokeStyle='rgba(120,35,35,0.35)';g.lineWidth=1;
   g.beginPath();g.moveTo(px+20,py+58);g.lineTo(px+pw-20,py+58);g.stroke();
-
   function btn(r,label,hi){
     g.fillStyle=hi?'rgba(150,28,28,0.82)':'rgba(35,8,8,0.82)';rr(r.x,r.y,r.w,r.h,6);g.fill();
     g.strokeStyle=hi?'rgba(220,60,60,0.65)':'rgba(100,25,25,0.45)';g.lineWidth=1;rr(r.x,r.y,r.w,r.h,6);g.stroke();
@@ -603,13 +635,11 @@ function drawPause(){
     g.fillText(label,r.x+r.w/2,r.y+r.h/2+4);
   }
   btn(RBTN,'계속하기',true);btn(STBTN,'처음부터',false);btn(TTBTN,'타이틀로',false);
-
   g.fillStyle='rgba(130,55,55,0.75)';g.font='10px Courier New';g.textAlign='left';
   g.fillText('BGM',BGMT.x-42,BGMT.y+5);drawSlider(BGMT,bgmVol);
   g.fillText('SFX',SFXT.x-42,SFXT.y+5);drawSlider(SFXT,sfxVol);
 }
 
-// ─── Room ─────────────────────────────────────────────────────
 function drawRoom(){
   if(!room)return;
   g.fillStyle=room.wl;g.fillRect(0,0,GW,GH);
@@ -619,7 +649,6 @@ function drawRoom(){
   g.strokeStyle=room.wl;g.lineWidth=2;
   g.beginPath();g.moveTo(0,fy);g.lineTo(GW,fy);g.stroke();
   g.fillStyle=room.wl;g.fillRect(0,HH+8,GW,8);g.fillRect(0,fy-3,GW,5);
-  // Depth shadows on walls
   g.fillStyle='rgba(0,0,0,0.12)';g.fillRect(8,HH+18,14,GH-HH-18-PBH-88);
   g.fillRect(GW-22,HH+18,14,GH-HH-18-PBH-88);
   if(phase===2){
@@ -635,7 +664,6 @@ function drawRoom(){
   room.objects.forEach(drawObj);
 }
 
-// ─── Title ────────────────────────────────────────────────────
 function drawTitle(){
   g.fillStyle='#050101';g.fillRect(0,0,GW,GH);
   g.globalAlpha=0.55;eyeShape(18,76,82,62);eyeShape(258,96,82,62);eyeShape(112,542,112,78);
@@ -643,28 +671,20 @@ function drawTitle(){
   g.globalAlpha=1;
   g.strokeStyle='rgba(100,25,25,0.3)';g.lineWidth=1;g.strokeRect(14,14,GW-28,GH-28);
   g.strokeStyle='rgba(70,16,16,0.18)';g.strokeRect(22,22,GW-44,GH-44);
-
-  // Title box
   g.fillStyle='rgba(16,4,4,0.72)';rr(38,168,GW-76,124,8);g.fill();
   g.strokeStyle='rgba(160,38,38,0.45)';g.lineWidth=1;rr(38,168,GW-76,124,8);g.stroke();
   g.fillStyle='#d48080';g.font='bold 46px Courier New';g.textAlign='center';g.fillText('ROOM:EYE',GW/2,228);
   g.strokeStyle='rgba(160,65,65,0.28)';g.lineWidth=1;g.beginPath();g.moveTo(58,240);g.lineTo(GW-58,240);g.stroke();
   g.fillStyle='#7a3232';g.font='11px Courier New';g.fillText('타인의 시선에 갇힌 방',GW/2,258);
   g.fillStyle='rgba(100,38,38,0.6)';g.font='10px Courier New';g.fillText('2D 심리 인디 호러',GW/2,276);
-
-  // Start button
   g.fillStyle='rgba(105,18,18,0.72)';rr(100,348,160,52,8);g.fill();
   g.strokeStyle='rgba(210,55,55,0.58)';g.lineWidth=1.5;rr(100,348,160,52,8);g.stroke();
   g.fillStyle='#f0a0a0';g.font='bold 18px Courier New';g.textAlign='center';g.fillText('시작하기',GW/2,381);
-
-  // Settings icon (gear)
   var gx=SICON.x+15,gy=SICON.y+14;
   g.fillStyle='rgba(100,25,25,0.65)';g.beginPath();g.arc(gx,gy,13,0,Math.PI*2);g.fill();
   g.strokeStyle='rgba(180,55,55,0.5)';g.lineWidth=1;g.beginPath();g.arc(gx,gy,13,0,Math.PI*2);g.stroke();
   for(var i=0;i<8;i++){var a=i/8*Math.PI*2;g.fillStyle='rgba(180,65,65,0.65)';g.fillRect(gx+Math.cos(a)*11-2,gy+Math.sin(a)*11-2,4,4);}
   g.fillStyle='rgba(6,1,1,0.92)';g.beginPath();g.arc(gx,gy,5,0,Math.PI*2);g.fill();
-
-  // Settings panel
   if(showSettings){
     var spx=18,spy=48,spw=GW-36,sph=192;
     g.fillStyle='rgba(6,1,1,0.97)';rr(spx,spy,spw,sph,8);g.fill();
@@ -677,13 +697,11 @@ function drawTitle(){
     g.fillStyle='rgba(100,45,45,0.6)';g.font='10px Courier New';g.textAlign='center';
     g.fillText('(탭하여 닫기)',GW/2,spy+sph-12);
   }
-
   g.fillStyle='rgba(75,28,28,0.5)';g.font='10px Courier New';g.textAlign='center';
   g.fillText('오브젝트 탭 → 조사  ·  빈 곳 탭 → 이동',GW/2,GH-16);
   vignette();
 }
 
-// ─── Ending ───────────────────────────────────────────────
 var END_EYES=[[45,135],[300,150],[30,250],[322,270],[25,390],[318,410],[170,100],[185,490],[80,460],[275,465],[140,300],[230,310]];
 function drawEnding(){
   g.fillStyle='#060202';g.fillRect(0,0,GW,GH);
@@ -703,20 +721,18 @@ function drawEnding(){
     g.restore();
   }
   if(eyeA>0){g.save();g.globalAlpha=eyeA*0.85;END_EYES.forEach(function(e){eyeShape(e[0]-18,e[1]-14,36,28);});g.restore();}
+  if(eyeA>0.3){drawBloods((eyeA-0.3)/0.7);}
   drawPlayer(P.x,P.y,P.flip,mirA>0.6);
   vignette();drawHUD();drawPhaseBar();
   if(paused)drawPause();
 }
 
-// ─── Main draw ──────────────────────────────────────────────
 function draw(){
   var realG=null;
-  if(GLT.active){
-    realG=g;g=offG;
-    offG.clearRect(0,0,GW,GH);
-  } else {
-    g.clearRect(0,0,GW,GH);
-  }
+  if(GLT.active){realG=g;g=offG;offG.clearRect(0,0,GW,GH);}
+  else{g.clearRect(0,0,GW,GH);}
+  var shaking=SHAKE.active&&!GLT.active;
+  if(shaking){g.save();g.translate(Math.round(SHAKE.x),Math.round(SHAKE.y));}
   if(scene==='title'){drawTitle();}
   else if(scene==='ending'){drawEnding();}
   else{
@@ -726,11 +742,8 @@ function draw(){
     vignette();drawNotif();drawHUD();drawPhaseBar();
     if(paused)drawPause();
   }
-  if(GLT.active){
-    g=realG;
-    realG.clearRect(0,0,GW,GH);
-    applyGlitchEffect();
-  }
+  if(shaking){g.restore();}
+  if(GLT.active){g=realG;realG.clearRect(0,0,GW,GH);applyGlitchEffect();}
 }
 
 requestAnimationFrame(tick);
